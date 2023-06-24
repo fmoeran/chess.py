@@ -1,0 +1,11 @@
+generation:
+    pseudo legal moves
+    check mask
+    pin mask for each position
+
+
+
+
+new generate_move file w/ magic bitboards
+transposition table w/ zobrist hashing
+improved evaluation function (pawns analysis, moveability analysis)
