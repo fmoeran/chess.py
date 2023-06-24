@@ -345,7 +345,7 @@ class MagicLookup:
 
 if __name__ == '__main__':
     #generate_rooks()
-    generate_bishops()
+    #generate_bishops()
     #save_rook_lookups()
     #save_bishop_lookups()
 
