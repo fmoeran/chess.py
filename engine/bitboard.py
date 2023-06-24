@@ -1,5 +1,10 @@
+from gmpy2 import bit_scan1
+
 from engine import move
 from engine import pieces
+
+
+# TODO merge zobrist hashing
 
 bitset = []
 p = 1
@@ -32,15 +37,7 @@ def get_single_position(x):
     """
     implementation of bitscan-forward for singular bit position maps
     """
-    count = 0
-
-    if x & 0xffffffff00000000: count += 32
-    if x & 0xffff0000ffff0000: count += 16
-    if x & 0xff00ff00ff00ff00: count += 8
-    if x & 0xf0f0f0f0f0f0f0f0: count += 4
-    if x & 0xcccccccccccccccc: count += 2
-    if x & 0xaaaaaaaaaaaaaaaa: count += 1
-    return count
+    return bit_scan1(x)
 
 
 def iter_bitmap(bitmap):
