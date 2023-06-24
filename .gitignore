@@ -1,3 +1,4 @@
 .idea/
 engine/.idea/
 engine/__pycache__/
+engine/pseudo.py
