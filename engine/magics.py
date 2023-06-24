@@ -1,5 +1,5 @@
 from random import randint
-import bitboard
+
 max_size = 1 << 64
 
 
@@ -132,6 +132,7 @@ def batt(sq, block_map):
 
 def transform(board, magic_num, num_bits):
     buffer = (1 << num_bits) - 1
+    #return (board * magic_num ^ (board >> 32) * (magic_num>>32) >> (32-num_bits)) & buffer
     return (board * magic_num) >> (64 - num_bits) & buffer
 
 
@@ -142,13 +143,14 @@ def count_1s(num):
         count += 1
     return count
 
-
+'''
 def map_index(index, mask):
     """
     returns an index for a specific mask in relation to a position's view.
     used for indexing every possible set of positions from the view of a square
     """
-    # we do this by imagining we map every position of the index num to the mask and then return that mask
+    # we do this by imagining we map every position of the index num (max 12 bits)
+    # to the mask's bits and then return that mask
 
     current_mask_bitset = 1  # we will run this along the mask each iteration to find the next 1 bit
     result = 0
@@ -161,6 +163,26 @@ def map_index(index, mask):
         mask &= ~current_mask_bitset  # remove this bit from the mask, we have used it
         index >>= 1
     return result
+'''
+def map_index(index, mask):
+    """
+    returns an index for a specific mask in relation to a position's view.
+    used for indexing every possible set of positions from the view of a square
+    """
+    # we do this by imagining we map every position of the index num (max 12 bits)
+    # to the mask's bits and then return that mask
+
+    current_mask_bitset = 1  # we will run this along the mask each iteration to find the next 1 bit
+    result = 0
+    while index:  # while we still have a bit left in our index
+        # shift the current mask to the next 1 bit of the mask
+        current_mask_bitset = mask & (~mask+1)
+        if index % 2 == 1:  # if the last bit == 1, we should set our new mask's position to 1
+            result |= current_mask_bitset
+        mask &= ~current_mask_bitset  # remove this bit from the mask, we have used it
+        index >>= 1
+    return result
+
 
 
 # mask = rmask(35)
@@ -172,8 +194,6 @@ def test_magic(magic, num_bits, blockers):
     # a register of whic indexes we have used
     used = [False for _ in range(4096)]
 
-    # just quickly check that it has moved some bits to the top, purely for efficiency
-
     failed = False
     for i in range(1 << num_bits):
         magic_index = transform(blockers[i], magic, num_bits)
@@ -182,10 +202,7 @@ def test_magic(magic, num_bits, blockers):
             break
         else:
             used[magic_index] = True
-    if not failed:
-        return True
-    else:
-        return False
+    return not failed
 
 
 def find_magic(sq, num_bits, is_bishop):
@@ -211,10 +228,6 @@ def find_magic(sq, num_bits, is_bishop):
         # get a random magic number to test
         magic = random_map_fewbits()
 
-        # just quickly check that it has moved some bits to the top, purely for efficiency#
-
-        if count_1s((mask * magic) & 0xff00000000000000) < min(7, num_bits):
-            continue
 
         if test_magic(magic, num_bits, blockers):
             return magic
@@ -247,6 +260,7 @@ b_bits = [
 
 
 def generate_rooks():
+    print("running")
     with open("rooks_magics.txt", "w") as file:
         for square in range(64):
             # print(f"{hex(find_magic(square, r_bits[square], False))}")
@@ -333,6 +347,6 @@ if __name__ == '__main__':
     #generate_rooks()
     generate_bishops()
     #save_rook_lookups()
-    save_bishop_lookups()
+    #save_bishop_lookups()
 
     pass

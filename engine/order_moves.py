@@ -1,7 +1,7 @@
-from evaluate import piece_worths, piece_square
-from bitboard import Board, get_single_position
-from move import Move, Flags
-from pieces import Piece
+from engine.evaluate import piece_worths, piece_square
+from engine.bitboard import Board, get_single_position
+from engine.move import Move, Flags
+from engine.pieces import Piece
 
 # gives a estimated value of how good a move is
 def estimate_value(board: Board, move: Move):

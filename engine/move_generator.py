@@ -1,9 +1,9 @@
 from time import time
 
-import bitboard
-import move
-import pieces
-import magics
+from engine import bitboard
+from engine import move
+from engine import pieces
+from engine import magics
 
 
 def map_to_moves(pos, map, tag=move.Flags.none, promotion_piece=0):

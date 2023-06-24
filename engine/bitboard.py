@@ -1,7 +1,5 @@
-
-
-import move
-import pieces
+from engine import move
+from engine import pieces
 
 bitset = []
 p = 1

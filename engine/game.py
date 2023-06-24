@@ -2,11 +2,11 @@ import pygame
 import random
 import time
 
-import move
-import display
-import bitboard
-import move_generator
-import pieces
+from engine import move
+from engine import display
+from engine import bitboard
+from engine import move_generator
+from engine import pieces
 
 pygame.init()
 
@@ -16,17 +16,19 @@ starting_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w QKqk - 0 1"
 # class with the game loop that activates each move and contains a board display and board
 class Game:
 
-    def __init__(self, size=90, white_is_ai=0, black_is_ai=0, debug=False):
+    def __init__(self, screen: pygame.Surface = None, size=90,
+                 white_is_ai=0, black_is_ai=0, debug=False, coords: tuple[int, int] = None):
 
         self.debug = debug
         self.clock = pygame.time.Clock()
 
-        self.board_position_x = 0
-        self.board_position_y = 0
+        if coords is None:
+            coords = (0, 0)
+        self.board_position_x, self.board_position_y = coords
         # the display to show the board
-        self.display: display.BoardDisplay = display.BoardDisplay(size, debug=self.debug,
+        self.display: display.BoardDisplay = display.BoardDisplay(screen, size, debug=self.debug,
                                                                   board_pos_x=self.board_position_x,
-                                                                  board_pos_y=self.board_position_y)
+                                                                  board_pos_y=self.board_position_y,)
 
         self.square_size = size
 
@@ -43,7 +45,6 @@ class Game:
 
         # True on the frame that they occur
         self.mouse_pressed = False
-        self.mouse_released = False
 
         # the current piece that the player is holding
         self.holding = None
@@ -89,15 +90,10 @@ class Game:
     # ----------------------------------------------------------------------------------------
     # attempts to move a piece via calling outsiade function (mke_move). If it is illegal, raise an exception
     def move_piece(self, move):
-
-        try:
-            if move not in self.current_legal_moves:
-                raise Exception(f"{move.start}-{move.end} is not in legal moves")
-            self.board.make_move(move)
-            self.current_legal_moves = None  # resets legal moves
-        except Exception as e:
-            print(f"Failed to move piece from {move.start} to {move.end}")
-            raise e
+        if move not in self.current_legal_moves:
+            raise Exception(f"{move.start}-{move.end} is not in legal moves")
+        self.board.make_move(move)
+        self.current_legal_moves = None  # resets legal moves
 
     def update_move_highlights(self):
         highlight_map = 0
@@ -105,14 +101,6 @@ class Game:
             if new_move.start == self.picked_up_position:
                 highlight_map |= new_move.end
         self.display.highlight_positions = highlight_map
-
-    # turns a mouse position to a board position
-    def get_mouse_position(self, pos):
-        x, y = pos
-        col = x // self.square_size
-        row = y // self.square_size
-        board_position = row * 8 + col
-        return bitboard.bitset[63 - board_position]
 
     # activates the mouse "holding" a piece
     def grab_position(self, pos_map):
@@ -129,7 +117,7 @@ class Game:
 
     # places down the current held piece
     def place_holding(self, pos):
-        position = self.get_mouse_position(pos)
+        position = self.display.get_mouse_position(pos)
         move = self.generate_move(self.picked_up_position, position)
 
         if move in self.current_legal_moves:
@@ -154,7 +142,7 @@ class Game:
         if mouse_button and not self.mouse_pressed:
             self.mouse_pressed = True
             if self.mouse_is_on_board():
-                self.grab_position(self.get_mouse_position(pygame.mouse.get_pos()))
+                self.grab_position(self.display.get_mouse_position(pygame.mouse.get_pos()))
 
         if not mouse_button and self.mouse_pressed:
             self.mouse_pressed = False
@@ -221,21 +209,23 @@ class Game:
                     if event.key == pygame.K_SPACE:
                         if self.debug and self.board.logs:
                             self.board.unmake_move()
-                            if (self.black_is_ai or self.white_is_ai) and self.debug and self.board.logs:
-                                self.board.unmake_move()
                             self.current_legal_moves = None
 
             self.display.update_screen(self.board, holding=self.holding, fps=self.clock.get_fps(),
                                        show_fps=show_fps, picked_position=self.picked_up_position)
-            move = self.move()
+            made_move = self.move()
 
-            if move is not None:
+            if made_move is not None:
                 if self.generator.get_attack_map() & self.board.positions[self.board.colour][pieces.king]:
                     return 1 - self.board.colour
                 else:
                     return None
 
         pygame.quit()
+
+    # TODO ADD THIS so that it can run as a coroutine with the menu system
+    def update(self):
+        pass
 
 
 if __name__ == "__main__":

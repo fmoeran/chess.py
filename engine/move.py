@@ -27,10 +27,10 @@ class Move:
         self.promotion_piece = promotion_piece
 
     def notate(self):
-        position = 1
+        position = 0
         start_pos = 0
         end_pos = 0
-        while 1 << position < 1 << 64:
+        while 1 << position < 1 << 63:
             if self.start == 1 << position:
                 start_pos = position
             if self.end == 1 << position:

@@ -1,6 +1,6 @@
 import pygame
-import pieces
-import bitboard
+from engine import pieces
+from engine import bitboard
 
 # A button class used for user selection of a promotion piece
 class ImgButton:
@@ -52,7 +52,7 @@ class ImgButton:
 # class used to display a board onto a screen
 class BoardDisplay:
 
-    def __init__(self, square_size, debug, board_pos_x, board_pos_y):
+    def __init__(self, screen: pygame.Surface, square_size: int, debug: bool, board_pos_x: int, board_pos_y: int):
         pygame.font.init()
         self.fps_font = pygame.font.SysFont("Consolas", 24)
         self.square_font = pygame.font.SysFont("Consolas", 16)
@@ -62,7 +62,11 @@ class BoardDisplay:
         self.board_position_y = board_pos_y
         self.width = self.square_size * 8
         self.height = self.square_size * 8
-        self.screen = pygame.display.set_mode((self.width, self.height))
+        if screen is None:
+            self.screen = pygame.display.set_mode((self.width, self.height))
+        else:
+            self.screen = screen
+
 
         # constants
         self.bg_colour = (0, 0, 0)
@@ -86,7 +90,7 @@ class BoardDisplay:
             for col in range(8):
                 colour = self.light_colour
                 dcolour = self.dark_colour
-                if (row % 2 + col) % 2 == 0:
+                if (row + col) % 2 == 1:
                     colour = self.dark_colour
                     dcolour = self.light_colour
                 self.squares.append((colour, pygame.Rect(self.board_position_x + col * self.square_size,
@@ -157,7 +161,7 @@ class BoardDisplay:
                 new_images[piece] = image
         return new_images
 
-    # draws a piece type to a row&col
+    # draws a piece type
     def draw_piece(self, piece: pieces.Piece, coord):
         x, y = map(lambda i: i - self.square_size // 2, coord)
         pygame.Surface.blit(self.screen, self.images[piece], (x, y))
@@ -184,9 +188,9 @@ class BoardDisplay:
             if position_map & self.highlight_positions:
 
                 row, col = 7-position // 8, 7-position % 8
-                self.screen.blit(self.highlight_surface, (col*self.square_size, row*self.square_size))
-                # pygame.draw.rect(self.screen, self.highlight_colour,
-                #                  (col * self.square_size, row * self.square_size, self.square_size, self.square_size))
+                self.screen.blit(self.highlight_surface,
+                                (col*self.square_size + self.board_position_x,
+                                 row*self.square_size + self.board_position_y))
             position_map <<= 1
 
     # blits the current piece being held
@@ -199,6 +203,13 @@ class BoardDisplay:
             self.display_square(position)
 
             self.draw_piece(holding, pygame.mouse.get_pos())
+
+    def get_mouse_position(self, pos):
+        x, y = pos
+        row = (y - self.board_position_y) // self.square_size
+        col = (x - self.board_position_x) // self.square_size
+        board_position = row * 8 + col
+        return bitboard.bitset[63 - board_position]
 
     def ask_user_for_promotion_piece(self, colour):
         piece_vals = [pieces.queen, pieces.rook, pieces.knight, pieces.bishop]

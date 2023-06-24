@@ -1,14 +1,6 @@
-import bitboard
-import pieces
+from engine import bitboard
+from engine import pieces
 
-
-piece_worths = {
-    pieces.pawn: 100,
-    pieces.knight: 300,
-    pieces.bishop: 350,
-    pieces.rook: 500,
-    pieces.queen: 900,
-}
 
 piece_worths = [
     100,  # pawn
@@ -89,17 +81,6 @@ def count_1s(num):
     return count
 
 def static_evaluate(board: bitboard.Board): # statically estimates a board's value
-    # if eval_memo.get(p_board) is not None:
-    #     return eval_memo[p_board]
-    # if board.is_checkmate():
-    #     if board.colour == 0:
-    #         return float("-inf")
-    #     else:
-    #         return float("inf")
-    # elif not get_legal_moves(board):
-    #     return 0
-
-    # the total sum of the baord's pieces values
     score_sum = 0
 
     for piece, worth in enumerate(piece_worths):
