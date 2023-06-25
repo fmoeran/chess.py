@@ -10,4 +10,5 @@ This project is basically an easy to understand version of chess.cpp!
 ```
 >>> pip install pygame
 >>> pip install gmpy2
+>>> pip install tqdm
 ```
