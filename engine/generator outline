@@ -1,8 +1,0 @@
-generate check mask (brute force for now)
-
-
-loop through each piece type and it's position map:
-    loop through each position (not as a map):
-        generate that piece's pin mask (possibly using magic bitboard)
-        generate that position's pseudo legal moves (using magic bitboard for sliding pieces)
-        add (pseudo & pinmask & checkmask & enemyorempty) to moves set

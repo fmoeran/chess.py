@@ -37,7 +37,8 @@ def get_single_position(x):
     """
     implementation of bitscan-forward for singular bit position maps
     """
-    return bit_scan1(x)
+    return (x & -x).bit_length()-1
+
 
 
 def iter_bitmap(bitmap):

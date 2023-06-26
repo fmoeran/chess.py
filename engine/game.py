@@ -221,7 +221,7 @@ class Game:
                 else:
                     return None
 
-        pygame.quit()
+
 
     # TODO ADD THIS so that it can run as a coroutine with the menu system
     def update(self):

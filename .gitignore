@@ -3,3 +3,4 @@ engine/.idea/
 engine/__pycache__/
 engine/pseudo.py
 engine/modtest.py
+engine/"generator outline"

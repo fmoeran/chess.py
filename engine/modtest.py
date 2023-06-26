@@ -1,6 +1,5 @@
 import chess
 import time
-import gmpy2
 
 board = chess.Board()
 #board.set_board_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w QKqk - 0 1")
@@ -34,7 +33,7 @@ print("searching")
 
 t = time.perf_counter()
 
-depth = 4
+depth = 5
 nodes = perft(depth)
 elapsed = time.perf_counter() - t
 

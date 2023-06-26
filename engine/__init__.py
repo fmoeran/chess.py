@@ -6,3 +6,6 @@ os.chdir(cd)
 
 from engine.game import Game
 from engine.search import Bot
+from engine import pieces
+
+from engine import evaluate

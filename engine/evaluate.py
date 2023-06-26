@@ -69,16 +69,12 @@ piece_square = [[
           20, 30, 10, 0, 0, 10, 30, 20],
 
 ]]
-# make the black versions
+# make the whtie versions
 black_piece_squares = [table[::-1] for table in piece_square[0]]
 piece_square.insert(0, black_piece_squares)
 
 def count_1s(num):
-    count = 0
-    while num:
-        num &= num - 1  # pop rightmost bit
-        count += 1
-    return count
+    return num.bit_count()
 
 def static_evaluate(board: bitboard.Board): # statically estimates a board's value
     score_sum = 0
@@ -100,8 +96,7 @@ def static_evaluate(board: bitboard.Board): # statically estimates a board's val
     total = score_sum + position_sum
     return total
 
-
-# returns how good the board is for it's current colour to play (aka, you always want it to be positive)
+# returns how good the board is for its current colour to play (aka, you always want it to be positive)
 def evaluate(board):
     eval = static_evaluate(board)
     if board.colour == 1:
