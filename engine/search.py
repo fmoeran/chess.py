@@ -2,21 +2,22 @@ from engine import bitboard
 from engine import move_generator
 from engine import evaluate
 from engine import order_moves
+from engine import pieces
 
 import tqdm
 
 from typing import Optional
 
 DEFAULT_DEPTH = 4
+QUIESCENCE = True
 
 
 class Bot:
-    def __init__(self, depth=DEFAULT_DEPTH):
+    def __init__(self):
         """
         stores functionality to find the "best" move from any board position
         :param depth: the depth that the minimax search will go to
         """
-        self.depth = depth
         self.generator: Optional[move_generator.Generator] = None
         self.nodes = 0
 
@@ -30,7 +31,6 @@ class Bot:
 
         move_score_list = []  # (move, score)
 
-        maximizing = board.colour == 0
 
         alpha = float("-inf")
         beta = float("inf")
@@ -38,31 +38,27 @@ class Bot:
         for move in tqdm.tqdm(moves_list, desc="Searching", ncols=100):
         #for move in moves_list:
             board.make_move(move)
-            # score = __minimax(p_board, DEFAULT_DEPTH - 1, not maximizing, alpha, beta)
-            score = self.negamax(board, DEFAULT_DEPTH - 1, alpha, beta)
+            score = -self.negamax(board, DEFAULT_DEPTH - 1, -beta, -alpha)
             board.unmake_move()
             move_score_list.append((move, score))
 
-            if maximizing:
-                if alpha < score:
-                    alpha = score
-            else:
-                if beta > score:
-                    beta = score
+            if score > alpha:
+                alpha = score
 
-        func = max if board.colour == 0 else min
-        best_move, value = func(move_score_list, key=lambda pair: pair[1])
-        if board.colour == 0:  # as we are using negamax
+        best_move, value = max(move_score_list, key=lambda pair: pair[1])
+        if board.colour == pieces.black:  # as we are using negamax
             value *= -1
-
+        #print(move_score_list)
         print("value:", value)
         print("nodes:", self.nodes)
+        print("evals:", evaluate.count)
         return best_move
 
     def negamax(self, board, depth, alpha, beta):
 
         if depth == 0:
-            return evaluate.evaluate(board)
+            if QUIESCENCE: return self.quiescence(board, -beta, -alpha)
+            else: return evaluate.evaluate(board)
 
         moves = self.generator.get_legal_moves()
         if not moves:
@@ -74,14 +70,39 @@ class Bot:
 
         moves = order_moves.order(board, moves)
 
+        best = float("-inf")
+
         for move in moves:
             self.nodes += 1
             board.make_move(move)
-            val = -self.negamax(board, depth - 1, -beta, -alpha)
+            score = -self.negamax(board, depth - 1, -beta, -alpha)
             board.unmake_move()
-            if val >= beta:  # this move won't get reached in perfect play by opponent
+            if score >= beta:  # this move won't get reached in perfect play by opponent
                 return beta
-            if val > alpha:  # we have found a better move than the current best
-                alpha = val
-        return alpha  # best possible move from the list that can be reached in perfect play
+            if score > best:
+                best = score
+                if score > alpha:  # we have found a better move than the current best
+                    alpha = score
+        return best  # best possible move from the list that can be reached in perfect play
 
+    def quiescence(self, board, alpha, beta):
+        current_eval = evaluate.evaluate(board)
+        if current_eval >= beta:
+            return beta
+        if current_eval > alpha:
+            alpha = current_eval
+
+        moves = self.generator.get_legal_moves(only_captures=True)
+
+
+        for move in moves:
+            self.nodes += 1
+            board.make_move(move)
+            score = -self.quiescence(board, -beta, -alpha)
+            board.unmake_move()
+
+            if score >= beta:
+                return beta
+            if score > alpha:
+                alpha = score
+        return alpha

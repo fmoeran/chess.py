@@ -529,7 +529,7 @@ class Generator:
         legal_moves = pseudo_legal & ~self.attack_map & ~self.board.team_maps[self.board.colour]
         return map_to_moves(position, legal_moves)
 
-    def get_legal_moves(self) -> list[move.Move, ...]:
+    def get_legal_moves(self, only_captures=False) -> list[move.Move, ...]:
         """
         returns a list of legal moves from the current position
         """
@@ -547,6 +547,9 @@ class Generator:
         self.pin_masks = self.get_pin_masks(king_pos)
 
         self.not_team_map = ~self.board.team_maps[self.board.colour]
+
+        if only_captures:
+            self.not_team_map = self.board.team_maps[not self.board.colour]
 
         moves.extend(self.get_legal_pawn_moves())
 

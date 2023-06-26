@@ -210,6 +210,8 @@ class Game:
                         if self.debug and self.board.logs:
                             self.board.unmake_move()
                             self.current_legal_moves = None
+                            if self.board.logs:
+                                self.board.unmake_move()
 
             self.display.update_screen(self.board, holding=self.holding, fps=self.clock.get_fps(),
                                        show_fps=show_fps, picked_position=self.picked_up_position)
