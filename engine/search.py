@@ -48,10 +48,9 @@ class Bot:
         best_move, value = max(move_score_list, key=lambda pair: pair[1])
         if board.colour == pieces.black:  # as we are using negamax
             value *= -1
-        #print(move_score_list)
+        print(move_score_list)
         print("value:", value)
         print("nodes:", self.nodes)
-        print("evals:", evaluate.count)
         return best_move
 
     def negamax(self, board, depth, alpha, beta):

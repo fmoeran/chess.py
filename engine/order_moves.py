@@ -1,9 +1,8 @@
 from engine.evaluate import piece_worths, piece_square
 from engine.bitboard import Board, get_single_position
 from engine.move import Move, Flags
-from engine.pieces import Piece
 
-# gives a estimated value of how good a move is
+# gives an estimated value of how good a move is
 def estimate_value(board: Board, move: Move):
     score = 0
     start_piece_value, end_piece_value = None, None
@@ -17,8 +16,6 @@ def estimate_value(board: Board, move: Move):
             end_piece_value = piece
             break
 
-    start_piece = Piece(start_piece_value, board.colour)
-
     # if we take a piece, get the worth of that piece - worth of taking piece
     if end_piece_value is not None:
         score += piece_worths[end_piece_value] - piece_worths[start_piece_value]
@@ -26,10 +23,6 @@ def estimate_value(board: Board, move: Move):
     # if the move is a promotion
     if move.flag == Flags.promotion:
         score += piece_worths[move.promotion_piece]
-
-    # if it's attacked by a pawn
-    # if move.end in board.get_enemy_pawn_attacks():
-    #     score -= piece_worths[start_piece.type] + piece_worths[pieces.pawn]
 
 
     score -= piece_square[board.colour][start_piece_value][get_single_position(move.start)]

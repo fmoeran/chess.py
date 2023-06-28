@@ -526,7 +526,7 @@ class Generator:
         # position = next(iter(self.board.int_positions[self.board.colour][pieces.king]))
         position = bitboard.get_single_position(self.board.positions[self.board.colour][pieces.king])
         pseudo_legal = self.pseudo_king(position)
-        legal_moves = pseudo_legal & ~self.attack_map & ~self.board.team_maps[self.board.colour]
+        legal_moves = pseudo_legal & ~self.attack_map & self.not_team_map
         return map_to_moves(position, legal_moves)
 
     def get_legal_moves(self, only_captures=False) -> list[move.Move, ...]:

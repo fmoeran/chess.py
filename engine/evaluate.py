@@ -13,7 +13,7 @@ piece_worths = [
 
 
 piece_square = [[
-     # white pawn
+     # black pawn
          [0, 0, 0, 0, 0, 0, 0, 0,
           50, 50, 50, 50, 50, 50, 50, 50,
           10, 10, 20, 30, 30, 20, 10, 10,
@@ -22,7 +22,7 @@ piece_square = [[
           5, -5, -10, 0, 0, -10, -5, 5,
           5, 10, 10, -20, -20, 10, 10, 5,
           0, 0, 0, 0, 0, 0, 0, 0],
-    # white knight
+    # black knight
          [-50, -40, -30, -30, -30, -30, -40, -50,
           -40, -20, 0, 5, 5, 0, -20, -40,
           -30, 5, 10, 15, 15, 10, 5, -30,
@@ -31,7 +31,7 @@ piece_square = [[
           -30, 0, 10, 15, 15, 10, 0, -30,
           -40, -20, 0, 0, 0, 0, -20, -40,
           -50, -40, -30, -30, -30, -30, -40, -50],
-    # white bishop
+    # black bishop
          [-20, -10, -10, -10, -10, -10, -10, -20,
           -10, 0, 0, 0, 0, 0, 0, -10,
           -10, 0, 5, 10, 10, 5, 0, -10,
@@ -40,7 +40,7 @@ piece_square = [[
           -10, 10, 10, 10, 10, 10, 10, -10,
           -10, 5, 0, 0, 0, 0, 5, -10,
           -20, -10, -10, -10, -10, -10, -10, -20],
-    # white rook
+    # black rook
          [0, 0, 0, 0, 0, 0, 0, 0,
           5, 10, 10, 10, 10, 10, 10, 5,
           -5, 0, 0, 0, 0, 0, 0, -5,
@@ -49,7 +49,7 @@ piece_square = [[
           -5, 0, 0, 0, 0, 0, 0, -5,
           -5, 0, 0, 0, 0, 0, 0, -5,
            0, 0, 0, 5, 5, 0, 0, 0],
-    # white queen
+    # black queen
          [-20, -10, -10, -5, -5, -10, -10, -20,
           -10, 0, 0, 0, 0, 5, 0, -10,
           -10, 0, 5, 5, 5, 5, 5, -10,
@@ -58,7 +58,7 @@ piece_square = [[
           -10, 0, 5, 5, 5, 5, 0, -10,
           -10, 0, 0, 0, 0, 0, 0, -10,
           -20, -10, -10, -5,-5, -10, -10, -20],
-    # white king
+    # black king
          [-30, -40, -40, -50, -50, -40, -40, -30,
           -30, -40, -40, -50, -50, -40, -40, -30,
           -30, -40, -40, -50, -50, -40, -40, -30,
@@ -70,8 +70,8 @@ piece_square = [[
 
 ]]
 # make the black versions
-black_piece_squares = [table[::-1] for table in piece_square[0]]
-piece_square.insert(pieces.black, black_piece_squares)
+white_piece_squares = [table[::-1] for table in piece_square[0]]
+piece_square.insert(pieces.white, white_piece_squares)
 
 def count_1s(num):
     return num.bit_count()
@@ -98,9 +98,8 @@ def static_evaluate(board: bitboard.Board): # statically estimates a board's val
 
 # returns how good the board is for its current colour to play (aka, you always want it to be positive)
 def evaluate(board):
-    eval = static_evaluate(board)
-    if board.colour == 1:
-        eval *= -1
-    return eval
+    res = static_evaluate(board)
+    if board.colour == 1: res = -res
+    return res
 
 

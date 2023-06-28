@@ -1,5 +1,3 @@
-from gmpy2 import bit_scan1
-
 from engine import move
 from engine import pieces
 
