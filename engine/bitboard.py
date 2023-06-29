@@ -4,8 +4,6 @@ from engine import move
 from engine import pieces
 
 
-# TODO merge zobrist hashing
-
 bitset = []
 p = 1
 for _ in range(64):
@@ -277,16 +275,15 @@ class Board:
         self.positions[self.colour][promotion_piece_type] |= end
 
         # pawn's original position
-        self.currently_altering.append(pieces.Piece(pieces.pawn, self.colour), start)
+        self.currently_altering.append((pieces.Piece(pieces.pawn, self.colour), start))
         # promotion new position
-        self.currently_altering.append(pieces.Piece(promotion_piece_type, self.colour), end)
+        self.currently_altering.append((pieces.Piece(promotion_piece_type, self.colour), end))
 
     def move_piece_castle(self, start, end):
         '''
         does the same as move_piece_default but also removes an enpassent pawn behind the end position
         NOTE this only needs a start and end position, as it assumes it is a king that has been moved
         '''
-        self.positions[self.colour][pieces.king] = end
         rstart, rend = 0, 0
         if self.colour == pieces.white:  # white
             if end < start:
@@ -365,7 +362,6 @@ class Board:
         for ind, bitmap in enumerate(self.positions[not self.colour]):
             if bitmap & end:
                 end_piece_type = ind
-                new_log.add_piece(pieces.Piece(end_piece_type, not self.colour), end)
                 break
 
         if end_piece_type is not None:  # if we are taking another piece
@@ -395,7 +391,7 @@ class Board:
 
         self.alter_zobrist_pieces()
         self.toggle_team_zobrist()
-        print(self.currently_altering)
+
         self.currently_altering.clear()
 
         self.increment_game_state()

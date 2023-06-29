@@ -94,7 +94,6 @@ class Game:
             raise Exception(f"{move.start}-{move.end} is not in legal moves")
         self.board.make_move(move)
         self.current_legal_moves = None  # resets legal moves
-        print(self.board.zobrist)
 
     def update_move_highlights(self):
         highlight_map = 0
@@ -212,6 +211,8 @@ class Game:
                             self.board.unmake_move()
                             self.current_legal_moves = None
                             if self.board.logs:
+                                self.display.update_screen(self.board)
+                                time.sleep(0.05)
                                 self.board.unmake_move()
 
             self.display.update_screen(self.board, holding=self.holding, fps=self.clock.get_fps(),
@@ -223,8 +224,6 @@ class Game:
                     return 1 - self.board.colour
                 else:
                     return None
-
-
 
     # TODO ADD THIS so that it can run as a coroutine with the menu system
     def update(self):
