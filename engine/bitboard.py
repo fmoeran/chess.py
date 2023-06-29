@@ -1,3 +1,5 @@
+from random import randint, seed
+
 from engine import move
 from engine import pieces
 
@@ -13,6 +15,20 @@ for _ in range(64):
 
 right_starting_rooks = [1, 1 << 56]
 left_starting_rooks = [1 << 7, 7 << 63]
+
+# zobrist hashing numbers
+max_zob = (1 << 65) - 1
+
+seed(1)
+def make_zobrist():
+    return randint(0, max_zob)
+
+
+zobrist_pieces = [[[make_zobrist() for i in range(64)] for j in range(6)] for k in range(2)]
+zobrist_team = make_zobrist()
+zobrist_right_castles = [make_zobrist(), make_zobrist()]
+zobrist_left_castles = [make_zobrist(), make_zobrist()]
+zobrist_ep = [make_zobrist() for i in range(8)]
 
 
 def printmap(bitmap: int):
@@ -46,11 +62,12 @@ def iter_bitmap(bitmap):
 
 
 class Log:
-    def __init__(self, info):
+    def __init__(self, board):
         '''
         class to store info of a board position to be able to undo a move
         '''
-        self.info = info
+        self.info = board.get_game_state()
+        self.zobrist = board.zobrist
         self.piece_info = []
 
     def add_piece(self, piece_type: pieces.Piece, map_position: int):
@@ -66,6 +83,7 @@ class Log:
 
         board.set_game_state(*self.info)
         board.update_team_positions()
+        board.zobrist = self.zobrist
 
 
 class Board:
@@ -116,6 +134,42 @@ class Board:
             self.team_maps[pieces.black] |= m
         self.all = self.all = self.team_maps[0] | self.team_maps[1]
 
+    def create_zobrist(self):
+        zob = 0
+        for i, team in enumerate(self.positions):
+            for j, piece_positions in enumerate(team):
+                selector = 1
+                for k in range(64):
+                    if selector & piece_positions:
+                        zob ^= zobrist_pieces[i][j][k]
+                    selector <<= 1
+        zob ^= zobrist_team * self.colour
+
+
+        return zob
+
+    def alter_zobrist_pieces(self):
+        """
+        updates self.zobrist according to the data inside self.currently_altering
+        """
+        for piece, pos_map in self.currently_altering:
+            int_position = get_single_position(pos_map)
+            self.zobrist ^= zobrist_pieces[piece.colour][piece.type][int_position]
+
+    def toggle_team_zobrist(self):
+        self.zobrist ^= zobrist_team
+
+    def toggle_ep_zobrist(self, pos_map):
+        position = get_single_position(pos_map)
+        ind = position % 8
+        self.zobrist ^= zobrist_ep[ind]
+
+    def toggle_left_castle_zobrist(self, colour):
+        self.zobrist ^= zobrist_left_castles[colour]
+
+    def toggle_right_castle_zobrist(self, colour):
+        self.zobrist ^= zobrist_right_castles[colour]
+
     def __init__(self, wp, wn, wb, wr, wq, wk, bp, bn, bb, br, bq, bk, ep, wlc, wrc, blc, brc, move_count, hm,
                  colour=None):
         '''
@@ -144,7 +198,13 @@ class Board:
         self.set_positions(wp, wn, wb, wr, wq, wk, bp, bn, bb, br, bq, bk)
         self.set_game_state(ep, wlc, wrc, blc, brc, move_count, hm, colour)
 
+        # stores a list of piece positions that will be toggled when a move is made.
+        # altered and reset each make_move call
+        self.currently_altering = []  # (Piece, position_map)
+
         self.logs: list[Log] = []
+
+        self.zobrist = self.create_zobrist()
 
     def __repr__(self):
         current_pieces = self.positions[0] + self.positions[1]
@@ -163,6 +223,9 @@ class Board:
                 string += "\n"
         return string[::-1].strip() + "\n"
 
+    def __hash__(self):
+        return self.zobrist
+
     def copy(self):
         return Board(*self.positions[0], *self.positions[1], *self.get_game_state())
 
@@ -172,8 +235,10 @@ class Board:
         """
         if rook_position & left_starting_rooks[colour]:
             self.left_castles[colour] = False
+            self.toggle_left_castle_zobrist(colour)
         elif rook_position & right_starting_rooks[colour]:
             self.right_castles[colour] = False
+            self.toggle_right_castle_zobrist(colour)
 
     def move_piece_default(self, start, end, piece_type):
         '''
@@ -182,36 +247,41 @@ class Board:
         '''
         self.positions[self.colour][piece_type] ^= start | end
 
+        altering = pieces.Piece(piece_type, self.colour)
+        self.currently_altering.append((altering, start))
+        self.currently_altering.append((altering, end))
+
         if piece_type == pieces.rook:
             self.remove_single_castle(start, self.colour)
 
-    def move_piece_ep(self, start, end, piece_type, new_log):
+    def move_piece_ep(self, start, end):
         '''
         does the same as move_piece_default but also removes an enpassent pawn behind the end position
         '''
-        self.move_piece_default(start, end, piece_type)
+        self.move_piece_default(start, end, pieces.pawn)
         if self.colour == pieces.white:
             ep_pos = end >> 8
         else:
             ep_pos = end << 8
-        self.positions[not self.colour][pieces.pawn] ^= ep_pos
 
-        # log handling
-        new_log.add_piece(pieces.Piece(pieces.pawn, not self.colour), ep_pos)
+        self.take_piece(ep_pos, pieces.pawn)
 
-    def move_piece_promotion(self, start, end, promotion_piece_type, new_log):
+        # add to zobrist
+        self.toggle_ep_zobrist(end)
+
+    def move_piece_promotion(self, start, end, promotion_piece_type):
         '''
             does the same as move_piece_default but places the promotion type piece onto the board
         '''
         self.positions[self.colour][pieces.pawn] ^= start
         self.positions[self.colour][promotion_piece_type] |= end
 
-        # log handling
-        new_log.piece_info.pop()  # this will be the position the pawn moved to
-        # now replaced with the new type
-        new_log.add_piece(pieces.Piece(promotion_piece_type, self.colour), end)
+        # pawn's original position
+        self.currently_altering.append(pieces.Piece(pieces.pawn, self.colour), start)
+        # promotion new position
+        self.currently_altering.append(pieces.Piece(promotion_piece_type, self.colour), end)
 
-    def move_piece_castle(self, start, end, new_log):
+    def move_piece_castle(self, start, end):
         '''
         does the same as move_piece_default but also removes an enpassent pawn behind the end position
         NOTE this only needs a start and end position, as it assumes it is a king that has been moved
@@ -229,12 +299,8 @@ class Board:
             elif end > start:
                 rstart, rend = 1 << 63, end >> 1
 
-        self.positions[self.colour][pieces.rook] ^= rstart & self.positions[self.colour][pieces.rook] | rend
-
-        # log handling for rook (king done in main function)
-        piece_type = pieces.Piece(pieces.rook, self.colour)
-        new_log.add_piece(piece_type, rstart)
-        new_log.add_piece(piece_type, rend)
+        self.move_piece_default(start, end, pieces.king)
+        self.move_piece_default(rstart, rend, pieces.rook)
 
     def take_piece(self, position, piece_type):
         """
@@ -244,6 +310,9 @@ class Board:
         # castle rights removal
         if piece_type == pieces.rook:
             self.remove_single_castle(position, not self.colour)
+
+        altering = pieces.Piece(piece_type, not self.colour)
+        self.currently_altering.append((altering, position))
 
     def update_ep_map(self, start, end):
         """
@@ -267,7 +336,8 @@ class Board:
         NOTE this does not take legality into account.
         '''
 
-        new_log = Log(self.get_game_state())
+        new_log = Log(self)
+        self.currently_altering = []
 
         start, end = p_move.start, p_move.end
         # map of the position the piece starts at
@@ -275,11 +345,6 @@ class Board:
         for ind, map in enumerate(self.positions[self.colour]):
             if map & start:
                 start_piece_type = ind
-                piece_type = pieces.Piece(start_piece_type, self.colour)
-                # add piece setting to log
-                new_log.add_piece(piece_type, start)
-                # add piece removal to log
-                new_log.add_piece(piece_type, end)
                 break
         else:
             raise Exception("Cannot move from an empty square")
@@ -287,13 +352,13 @@ class Board:
         if p_move.flag == move.Flags.none:
             self.move_piece_default(start, end, start_piece_type)
         elif p_move.flag == move.Flags.en_passent:
-            self.move_piece_ep(start, end, start_piece_type, new_log)
+            self.move_piece_ep(start, end)
 
         elif p_move.flag == move.Flags.promotion:
-            self.move_piece_promotion(start, end, p_move.promotion_piece, new_log)
+            self.move_piece_promotion(start, end, p_move.promotion_piece)
 
         elif p_move.flag == move.Flags.castle:
-            self.move_piece_castle(start, end, new_log)
+            self.move_piece_castle(start, end)
 
         # map of the position the piece ends at
         end_piece_type = None
@@ -316,12 +381,26 @@ class Board:
 
         # remove castle rights
         if start_piece_type == pieces.king:
-            self.right_castles[self.colour] = False
-            self.left_castles[self.colour] = False
+            if self.right_castles[self.colour]:
+                self.right_castles[self.colour] = False
+                self.toggle_left_castle_zobrist(self.colour)
+            if self.left_castles[self.colour]:
+                self.left_castles[self.colour] = False
+                self.toggle_right_castle_zobrist(self.colour)
+
+        for alter in self.currently_altering:
+            new_log.add_piece(*alter)
+
+        self.logs.append(new_log)
+
+        self.alter_zobrist_pieces()
+        self.toggle_team_zobrist()
+        print(self.currently_altering)
+        self.currently_altering.clear()
 
         self.increment_game_state()
         self.update_team_positions()
-        self.logs.append(new_log)
+
 
     def unmake_move(self):
         log = self.logs.pop()

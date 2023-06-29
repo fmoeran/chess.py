@@ -4,7 +4,7 @@ from engine import evaluate
 from engine import order_moves
 from engine import pieces
 
-import tqdm
+#import tqdm
 
 from typing import Optional
 
@@ -35,8 +35,8 @@ class Bot:
         alpha = float("-inf")
         beta = float("inf")
 
-        for move in tqdm.tqdm(moves_list, desc="Searching", ncols=100):
-        #for move in moves_list:
+        #for move in tqdm.tqdm(moves_list, desc="Searching", ncols=100):
+        for move in moves_list:
             board.make_move(move)
             score = -self.negamax(board, DEFAULT_DEPTH - 1, -beta, -alpha)
             board.unmake_move()

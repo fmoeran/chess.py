@@ -94,6 +94,7 @@ class Game:
             raise Exception(f"{move.start}-{move.end} is not in legal moves")
         self.board.make_move(move)
         self.current_legal_moves = None  # resets legal moves
+        print(self.board.zobrist)
 
     def update_move_highlights(self):
         highlight_map = 0
