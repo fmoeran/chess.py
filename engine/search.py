@@ -4,8 +4,6 @@ from engine import evaluate
 from engine import order_moves
 from engine import pieces
 
-#import tqdm
-
 from typing import Optional
 
 DEFAULT_DEPTH = 4
@@ -31,11 +29,9 @@ class Bot:
 
         move_score_list = []  # (move, score)
 
-
         alpha = float("-inf")
         beta = float("inf")
 
-        #for move in tqdm.tqdm(moves_list, desc="Searching", ncols=100):
         for move in moves_list:
             board.make_move(move)
             score = -self.negamax(board, DEFAULT_DEPTH - 1, -beta, -alpha)
@@ -56,8 +52,10 @@ class Bot:
     def negamax(self, board, depth, alpha, beta):
 
         if depth == 0:
-            if QUIESCENCE: return self.quiescence(board, -beta, -alpha)
-            else: return evaluate.evaluate(board)
+            if QUIESCENCE:
+                return self.quiescence(board, -beta, -alpha)
+            else:
+                return evaluate.evaluate(board)
 
         moves = self.generator.get_legal_moves()
         if not moves:
@@ -92,7 +90,6 @@ class Bot:
             alpha = current_eval
 
         moves = self.generator.get_legal_moves(only_captures=True)
-
 
         for move in moves:
             self.nodes += 1
