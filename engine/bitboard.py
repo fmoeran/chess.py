@@ -460,17 +460,3 @@ class Board:
         return cls(*init_pieces, ep, wlc, wrc, blc, brc, moves, hm, init_colour)
 
 
-
-if __name__ == "__main__":
-    board = Board.from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQK2R w QKqk - 0 1")
-    #                                                               ^
-
-    def test(p_move: move.Move):
-        board.make_move(p_move)
-        print(board)
-        board.unmake_move()
-        print(board)
-
-
-    test(move.Move(bitset[3], bitset[1], move.Flags.castle))
-
