@@ -3,14 +3,6 @@ from random import randint, seed
 from engine import move
 from engine import pieces
 
-
-bitset = []
-p = 1
-for _ in range(64):
-    bitset.append(p)
-    p <<= 1
-
-
 right_starting_rooks = [1, 1 << 56]
 left_starting_rooks = [1 << 7, 7 << 63]
 
@@ -18,6 +10,8 @@ left_starting_rooks = [1 << 7, 7 << 63]
 max_zob = (1 << 65) - 1
 
 seed(1)
+
+
 def make_zobrist():
     return randint(0, max_zob)
 
@@ -28,32 +22,42 @@ zobrist_right_castles = [make_zobrist(), make_zobrist()]
 zobrist_left_castles = [make_zobrist(), make_zobrist()]
 zobrist_ep = [make_zobrist() for i in range(8)]
 
+bitset = []
+p = 1
+for _ in range(64):
+    bitset.append(p)
+    p <<= 1
+
 
 def printmap(bitmap: int):
     '''
     prints the 64 bits of a bitmap of a bitboard
     '''
-    position = 1
-    rows = []
 
-    for row in range(8):
-        current_row = []
-        for col in range(8):
-            current_row.append("1" if position & bitmap else ".")
-            position <<= 1
-        rows.append("".join(current_row[::-1]))
-    print("\n".join(rows[::-1]) + "\n")
+    # position starts at a8
+    position = 1 << 63
+    for i in range(64):
+        # print a 1 when we find a set bit
+        print("1" if position & bitmap else ".", end="")
+        # we reached the end of a row
+        if i % 8 == 7:
+            print()
+        position >>= 1
+    print()
 
 
-def get_single_position(x):
+def get_single_position(bitmap):
     """
     implementation of bitscan-forward for singular bit position maps
     """
-    return (x & -x).bit_length()-1
 
+    return (bitmap & -bitmap).bit_length() - 1
 
 
 def iter_bitmap(bitmap):
+    """
+    A generator to loop through the indexes of every set bit in a bitmap
+    """
     while bitmap:
         yield get_single_position(bitmap & (-bitmap))
         bitmap &= bitmap - 1
@@ -116,7 +120,8 @@ class Board:
                 self.current_move, self.half_moves, self.colour]
 
     def increment_game_state(self):
-        self.current_move += 1
+        if self.colour == pieces.black:
+            self.current_move += 1
         self.half_moves += 1
         self.colour = 1 - self.colour
 
@@ -142,7 +147,6 @@ class Board:
                         zob ^= zobrist_pieces[i][j][k]
                     selector <<= 1
         zob ^= zobrist_team * self.colour
-
 
         return zob
 
@@ -207,8 +211,8 @@ class Board:
     def __repr__(self):
         current_pieces = self.positions[0] + self.positions[1]
         string = ""
-        position = 1
-        for row in range(64):
+        position = 1 << 63
+        for sq in range(64):
             for i, piece in enumerate(current_pieces):
 
                 if position & piece:
@@ -216,16 +220,88 @@ class Board:
                     break
             else:
                 string += "."
-            position <<= 1
-            if row % 8 == 7:
+            if sq % 8 == 7:
                 string += "\n"
-        return string[::-1].strip() + "\n"
+            position >>= 1
+        return string
 
     def __hash__(self):
         return self.zobrist
 
     def copy(self):
         return Board(*self.positions[0], *self.positions[1], *self.get_game_state())
+
+    def make_move(self, p_move: move.Move):
+        '''
+        Makes a move on the board and updates logic (e.g. current_move)
+        NOTE this does not take legality into account.
+        '''
+
+        new_log = Log(self)
+        self.currently_altering = []
+
+        start, end = p_move.start, p_move.end
+        # map of the position the piece starts at
+
+        for ind, map in enumerate(self.positions[self.colour]):
+            if map & start:
+                start_piece_type = ind
+                break
+        else:
+            raise Exception("Cannot move from an empty or enemy square")
+
+        if p_move.flag == move.Flags.none:
+            self.move_piece_default(start, end, start_piece_type)
+        elif p_move.flag == move.Flags.en_passent:
+            self.move_piece_ep(start, end)
+
+        elif p_move.flag == move.Flags.promotion:
+            self.move_piece_promotion(start, end, p_move.promotion_piece)
+
+        elif p_move.flag == move.Flags.castle:
+            self.move_piece_castle(start, end)
+
+        # map of the position the piece ends at
+        end_piece_type = None
+        for ind, bitmap in enumerate(self.positions[not self.colour]):
+            if bitmap & end:
+                end_piece_type = ind
+                break
+
+        if end_piece_type is not None:  # if we are taking another piece
+            self.take_piece(end, end_piece_type)
+
+
+
+        # update ep_map
+        self.ep_map = 0
+        if start_piece_type == pieces.pawn:
+            self.update_ep_map(start, end)
+
+        # remove castle rights
+        if start_piece_type == pieces.king:
+            if self.right_castles[self.colour]:
+                self.right_castles[self.colour] = False
+                self.toggle_left_castle_zobrist(self.colour)
+            if self.left_castles[self.colour]:
+                self.left_castles[self.colour] = False
+                self.toggle_right_castle_zobrist(self.colour)
+
+        for alter in self.currently_altering:
+            new_log.add_piece(*alter)
+
+        self.logs.append(new_log)
+
+        self.alter_zobrist_pieces()
+        self.toggle_team_zobrist()
+
+        self.currently_altering.clear()
+
+        self.increment_game_state()
+        self.update_team_positions()
+
+        if end_piece_type is not None or start_piece_type == pieces.pawn:
+            self.half_moves = 0
 
     def remove_single_castle(self, rook_position, colour):
         """
@@ -301,7 +377,7 @@ class Board:
 
     def take_piece(self, position, piece_type):
         """
-        the oposite of move_piece_default, takes a piece away from the
+        the opposite of move_piece_default, takes a piece away from the
         """
         self.positions[not self.colour][piece_type] ^= position
         # castle rights removal
@@ -327,76 +403,6 @@ class Board:
                 return
             self.ep_map = end << 8
 
-    def make_move(self, p_move: move.Move):
-        '''
-        Makes a move on the board and updates logic (e.g. current_move)
-        NOTE this does not take legality into account.
-        '''
-
-        new_log = Log(self)
-        self.currently_altering = []
-
-        start, end = p_move.start, p_move.end
-        # map of the position the piece starts at
-
-        for ind, map in enumerate(self.positions[self.colour]):
-            if map & start:
-                start_piece_type = ind
-                break
-        else:
-            raise Exception("Cannot move from an empty square")
-
-        if p_move.flag == move.Flags.none:
-            self.move_piece_default(start, end, start_piece_type)
-        elif p_move.flag == move.Flags.en_passent:
-            self.move_piece_ep(start, end)
-
-        elif p_move.flag == move.Flags.promotion:
-            self.move_piece_promotion(start, end, p_move.promotion_piece)
-
-        elif p_move.flag == move.Flags.castle:
-            self.move_piece_castle(start, end)
-
-        # map of the position the piece ends at
-        end_piece_type = None
-        for ind, bitmap in enumerate(self.positions[not self.colour]):
-            if bitmap & end:
-                end_piece_type = ind
-                break
-
-        if end_piece_type is not None:  # if we are taking another piece
-            self.take_piece(end, end_piece_type)
-
-        if end_piece_type is None and p_move.flag != move.Flags.en_passent:
-            self.half_moves = 0
-
-        # update ep_map
-        self.ep_map = 0
-        if start_piece_type == pieces.pawn:
-            self.update_ep_map(start, end)
-
-        # remove castle rights
-        if start_piece_type == pieces.king:
-            if self.right_castles[self.colour]:
-                self.right_castles[self.colour] = False
-                self.toggle_left_castle_zobrist(self.colour)
-            if self.left_castles[self.colour]:
-                self.left_castles[self.colour] = False
-                self.toggle_right_castle_zobrist(self.colour)
-
-        for alter in self.currently_altering:
-            new_log.add_piece(*alter)
-
-        self.logs.append(new_log)
-
-        self.alter_zobrist_pieces()
-        self.toggle_team_zobrist()
-
-        self.currently_altering.clear()
-
-        self.increment_game_state()
-        self.update_team_positions()
-
 
     def unmake_move(self):
         log = self.logs.pop()
@@ -404,28 +410,33 @@ class Board:
 
     @classmethod
     def from_fen(cls, fen: str):
-        '''
+        """
         returns a fully initialized instance of a Board from a FEN string
         :param fen: FEN string of board to initialize
         :return: initialized Board
-        '''
-        data = fen.split()
+        """
+
+        data = fen.split(" ")
+        # add empty values into the data if we are given too few
         while len(data) < 6:
             data.append("-")
+
         layout, colour, castles, pawn_move, half_move, full_move = data
 
         # getting positions
-        init_pieces = [0 for _ in pieces.coloured_values]  # wp, wn, wb, wr etc...
-        position = 1  # will be left shifted to access each position
-        for char in layout[::-1]:
+        init_pieces = [0 for _ in range(12)]  # wp, wn, wb, wr etc...
+        position = 1 << 63  # will be right shifted to access each position
+        for char in layout:
             if char == "/":
                 continue
             elif "0" < char <= "9":
-                position <<= int(char)
+                # skip forward n times
+                position >>= int(char)
             else:
+                # add the position to the respective piece
                 piece_val = pieces.coloured_values[char]
                 init_pieces[piece_val] |= position
-                position <<= 1
+                position >>= 1
 
         # colour
         init_colour = pieces.white if colour == "w" else pieces.black
@@ -434,11 +445,9 @@ class Board:
         # en passent bitmap
         ep = 0
         if pawn_move != "-":
-            last_move_end = ((8 - move.column_letters.index(pawn_move[0])) + 8 * (int(pawn_move[1]) - 1)) - 1
-            if init_colour == pieces.white:
-                ep = 1 << last_move_end >> 8
-            else:
-                ep = 1 << last_move_end << 8
+            # last_move_end = column + 8 * row
+            last_move_end = ((7 - move.column_letters.index(pawn_move[0])) + 8 * (int(pawn_move[1]) - 1))
+            ep = bitset[last_move_end]
 
         # half and full move counts
         hm = 0
@@ -447,5 +456,21 @@ class Board:
         moves = init_colour
         if full_move != "-":
             moves = int(full_move)
+
         return cls(*init_pieces, ep, wlc, wrc, blc, brc, moves, hm, init_colour)
+
+
+
+if __name__ == "__main__":
+    board = Board.from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQK2R w QKqk - 0 1")
+    #                                                               ^
+
+    def test(p_move: move.Move):
+        board.make_move(p_move)
+        print(board)
+        board.unmake_move()
+        print(board)
+
+
+    test(move.Move(bitset[3], bitset[1], move.Flags.castle))
 
