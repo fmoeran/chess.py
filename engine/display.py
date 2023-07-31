@@ -230,18 +230,16 @@ class BoardDisplay:
 
     # blits all current pieces to the board
     def display_pieces(self, board: bitboard.Board):
-        # create a list of the type of peice at each position, top left = 0, bottom right = 63
+        # create a list of the type of peice at each position
+        # None represents no piece
         display_list = [None for _ in range(64)]
         for colour, piece_list in enumerate(board.positions):
             for piece_type, piece_map in enumerate(piece_list):
-                position = 1
-                for index in range(64):
-                    if piece_map & position:
-                        display_list[index] = pieces.Piece(piece_type, colour) # noqa
-                    position <<= 1
+                for index in bitboard.iter_bitmap(piece_map):
+                        display_list[63-index] = pieces.Piece(piece_type, colour) # noqa
 
-        # reverse the list because the bitboard represents the 0th element at the bottom right
-        display_list.reverse()
+
+
         # display each piece
         for position, piece in enumerate(display_list):
             if piece is None:
