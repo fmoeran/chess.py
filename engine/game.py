@@ -17,10 +17,9 @@ starting_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w QKqk - 0 1"
 class Game:
 
     def __init__(self, screen: pygame.Surface = None, size=90,
-                 white_is_ai=0, black_is_ai=0, debug=False, coords: tuple[int, int] = None):
+                 white_is_ai=False, black_is_ai=False, debug=False, coords: tuple[int, int] = None):
 
         self.debug = debug
-        self.clock = pygame.time.Clock()
 
         if coords is None:
             coords = (0, 0)
@@ -53,6 +52,8 @@ class Game:
 
         # holds all the current legal moves for the player whose move it is
         self.current_legal_moves = None
+        # positions to pass to self.display to highlight when holding a piece
+        self.highlight_positions = []
 
     # updates self.current_moves to a set with every legal move the current team can make
     def update_current_moves(self):  # runs the first frame a player's move function is called
@@ -87,8 +88,7 @@ class Game:
 
         # will return None if there aere no legal moves with those positions
 
-    # ----------------------------------------------------------------------------------------
-    # attempts to move a piece via calling outsiade function (mke_move). If it is illegal, raise an exception
+    # attempts to move a piece via calling outside function (mke_move). If it is illegal, raise an exception
     def move_piece(self, move):
         if move not in self.current_legal_moves:
             raise Exception(f"{move.start}-{move.end} is not in legal moves")
@@ -96,11 +96,12 @@ class Game:
         self.current_legal_moves = None  # resets legal moves
 
     def update_move_highlights(self):
-        highlight_map = 0
+        self.highlight_positions = []
         for new_move in self.current_legal_moves:
             if new_move.start == self.picked_up_position:
-                highlight_map |= new_move.end
-        self.display.highlight_positions = highlight_map
+                self.highlight_positions.append(bitboard.get_single_position(new_move.end))
+
+
 
     # activates the mouse "holding" a piece
     def grab_position(self, pos_map):
@@ -124,7 +125,7 @@ class Game:
             self.move_piece(move)
         self.holding = None
         self.picked_up_position = None
-        self.display.highlight_positions = 0
+        self.highlight_positions = []
 
     def mouse_is_on_board(self):
         pos = pygame.mouse.get_pos()
@@ -195,10 +196,9 @@ class Game:
 
     # ----------------------------------------------------------------------------------
     # the main loop for the game
-    def run(self, show_fps=False):  # returns 0 for white win, 1 for black win, None for draw
+    def run(self):  # returns 0 for white win, 1 for black win, None for draw
         running = True
         while running:
-            self.clock.tick()
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -215,22 +215,22 @@ class Game:
                                 time.sleep(0.05)
                                 self.board.unmake_move()
 
-            self.display.update_screen(self.board, holding=self.holding, fps=self.clock.get_fps(),
-                                       show_fps=show_fps, picked_position=self.picked_up_position)
-            made_move = self.move()
+            self.update()
 
-            if made_move is not None:
-                if self.generator.get_attack_map() & self.board.positions[self.board.colour][pieces.king]:
-                    return 1 - self.board.colour
-                else:
-                    return None
-
-    # TODO ADD THIS so that it can run as a coroutine with the menu system
     def update(self):
-        pass
+        self.display.update_screen(self.board, holding=self.holding,
+                                   picked_position=self.picked_up_position,
+                                   highlight_positions=self.highlight_positions)
+        made_move = self.move()
+
+        if made_move is not None:
+            if self.generator.get_attack_map() & self.board.positions[self.board.colour][pieces.king]:
+                return 1 - self.board.colour
+            else:
+                return None
 
 
 if __name__ == "__main__":
     game = Game(debug=True, white_is_ai=False, black_is_ai=False, size=90)
-    result = game.run(show_fps=True)
+    result = game.run()
     print(result)
