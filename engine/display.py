@@ -2,45 +2,37 @@ import pygame
 from engine import pieces
 from engine import bitboard
 
+
 # A button class used for user selection of a promotion piece
 class ImgButton:
-    def __init__(self, surface: pygame.Surface, image: pygame.Surface, x: int, y: int):
+    def __init__(self, surface: pygame.Surface, image: pygame.Surface, x: int, y: int, size: int,
+                 colour):
         self.surface = surface
+        self.coords = (x, y)
         self.x = x
         self.y = y
-        self.width = image.get_width()
-        self.height = image.get_height()
+        self.width = size
+        self.height = size
         self.image = image
         self.is_clicked = False
-        self.bg_colour = (150, 150, 150)
-        self.buffer = 3
-        self.curve_buffer = 7
-        self.circles = (
-            (self.x + self.curve_buffer + self.buffer, self.y + self.curve_buffer + self.buffer),
-            (self.x + self.width - self.curve_buffer - self.buffer, self.y + self.curve_buffer + self.buffer),
-            (self.x + self.curve_buffer + self.buffer, self.y + self.height - self.curve_buffer - self.buffer),
-            (self.x + self.width - self.curve_buffer - self.buffer,
-             self.y + self.height - self.curve_buffer - self.buffer)
-        )
+        self.bg_colour = colour
+        self.img_position = (x + size / 2 - image.get_width() / 2, y + size / 2 - image.get_height() / 2)
 
-    # blits the image to the screen
+        self.rect_surface = pygame.Surface((self.width, self.height))
+        self.rect_surface.fill(self.bg_colour)
+
     def display(self):
-
-        pygame.draw.rect(self.surface, self.bg_colour,
-                         (self.x + self.curve_buffer + self.buffer, self.y + self.buffer,
-                          self.width - self.curve_buffer * 2 - self.buffer * 2, self.height - self.buffer * 2))
-        pygame.draw.rect(self.surface, self.bg_colour,
-                         (self.x + self.buffer, self.y + self.curve_buffer + self.buffer, self.width - self.buffer * 2,
-                          self.height - self.curve_buffer * 2 - self.buffer * 2))
-        for circle in self.circles:
-            pygame.draw.circle(self.surface, self.bg_colour, circle, self.curve_buffer)
-
-        self.surface.blit(self.image, (self.x, self.y))
-
+        """
+        displays the button the self.surface
+        """
+        self.surface.blit(self.rect_surface, self.coords)
+        self.surface.blit(self.image, self.img_position)
         pygame.display.update()
 
-    # checks if the user has clicked on the button, if so it updates the clicked variable
     def update(self):
+        """
+        checks if the user has clicked on the button, if so it updates the clicked variable
+        """
         self.is_clicked = False
         mouse_x, mouse_y = pygame.mouse.get_pos()
         if pygame.mouse.get_pressed(3)[0]:
@@ -54,7 +46,6 @@ class BoardDisplay:
 
     def __init__(self, screen: pygame.Surface, square_size: int, debug: bool, board_pos_x: int, board_pos_y: int):
         pygame.font.init()
-        self.fps_font = pygame.font.SysFont("Consolas", 24)
         self.square_font = pygame.font.SysFont("Consolas", 16)
         self.square_size = square_size
         # set up screen
@@ -67,15 +58,14 @@ class BoardDisplay:
         else:
             self.screen = screen
 
-
         # constants
         self.bg_colour = (0, 0, 0)
         self.light_colour = (255, 255, 255)
-        #self.light_colour = (240, 217, 181)
+        # self.light_colour = (240, 217, 181)
 
         # self.dark_colour = (101, 71, 0)
         self.dark_colour = (112, 62, 4)
-        #self.dark_colour = (181,136,99)
+        # self.dark_colour = (181,136,99)
 
         # whether to display dfebug numbers
         self.debug = debug
@@ -143,13 +133,17 @@ class BoardDisplay:
         # colour square for showing the legal moves for a piece
         self.highlight_colour = (184, 21, 0)
         self.highglight_alpha = 210
-        self.highlight_positions = 0  # map of what positions to highlight
 
         # surface to blit to the screen to show legal moves
         # we do it this way to make it transparent
         self.highlight_surface = pygame.Surface((self.square_size, self.square_size))
         self.highlight_surface.set_alpha(self.highglight_alpha)
         self.highlight_surface.fill(self.highlight_colour)
+
+
+        # promotion GUI
+        self.buttons = []
+        self.piece_vals = [pieces.queen, pieces.rook, pieces.knight, pieces.bishop]
 
     # scales all images to the current size (declared in __init__)
     def scale_images(self, scale):
@@ -180,25 +174,17 @@ class BoardDisplay:
             self.display_square(i)
 
     # displays all possible moves for the current held piece
-    def display_moves(self):
-        if not self.highlight_positions:
-            return
-        position_map = 1
-        for position in range(64):
-            if position_map & self.highlight_positions:
-
-                row, col = 7-position // 8, 7-position % 8
-                self.screen.blit(self.highlight_surface,
-                                (col*self.square_size + self.board_position_x,
-                                 row*self.square_size + self.board_position_y))
-            position_map <<= 1
+    def display_moves(self, highlight_positions):
+        for position in highlight_positions:
+            row, col = 7 - position // 8, 7 - position % 8
+            self.screen.blit(self.highlight_surface,
+                             (col * self.square_size + self.board_position_x,
+                              row * self.square_size + self.board_position_y))
 
     # blits the current piece being held
     def display_holding(self, holding, picked_position):
         if holding is not None and picked_position is not None:
-            position = 0
-            while 1 << position != picked_position:
-                position += 1
+            position = bitboard.get_single_position(picked_position)
             position = 63 - position
             self.display_square(position)
 
@@ -211,22 +197,27 @@ class BoardDisplay:
         board_position = row * 8 + col
         return bitboard.bitset[63 - board_position]
 
-    def ask_user_for_promotion_piece(self, colour):
-        piece_vals = [pieces.queen, pieces.rook, pieces.knight, pieces.bishop]
-        size = self.square_size
+    def start_ask_user_for_promotion_piece(self, colour):
+        """
+        initialises the promotion butons when the game wants to ask the user for a promotion pieces
+        """
+
+        size = self.square_size * 2
         midpoint = self.square_size * 4
         positions = [(midpoint - size, midpoint - size), (midpoint, midpoint - size),
                      (midpoint - size, midpoint), (midpoint, midpoint)]
-        buttons = [ImgButton(self.screen, self.images[pieces.Piece(piece_val, colour)], x, y)
-                   for piece_val, (x, y) in zip(piece_vals, positions)]
+        colours = [self.dark_colour, self.light_colour, self.light_colour, self.dark_colour]
+        self.buttons = [ImgButton(self.screen, self.images[pieces.Piece(piece_val, colour)], x, y, size, bg_clr)
+                        for piece_val, (x, y), bg_clr in zip(self.piece_vals, positions, colours)]
 
-        while True:
-            pygame.event.get()
-            for button, piece_val in zip(buttons, piece_vals):
-                button.display()
-                button.update()
-                if button.is_clicked:
-                    return piece_val
+    def get_promotion_answer(self):
+        pygame.event.get()
+        for button, piece_val in zip(self.buttons, self.piece_vals):
+            button.display()
+            button.update()
+            if button.is_clicked:
+                self.buttons = []
+                return piece_val
 
     # blits all current pieces to the board
     def display_pieces(self, board: bitboard.Board):
@@ -236,9 +227,7 @@ class BoardDisplay:
         for colour, piece_list in enumerate(board.positions):
             for piece_type, piece_map in enumerate(piece_list):
                 for index in bitboard.iter_bitmap(piece_map):
-                        display_list[63-index] = pieces.Piece(piece_type, colour) # noqa
-
-
+                    display_list[63 - index] = pieces.Piece(piece_type, colour)  # noqa
 
         # display each piece
         for position, piece in enumerate(display_list):
@@ -249,20 +238,12 @@ class BoardDisplay:
                                 (self.board_position_x + col * self.square_size,
                                  self.board_position_y + row * self.square_size))
 
-    # duh
-    def display_fps(self, fps):
-
-        img = self.fps_font.render(str(int(fps)), True, (20, 255, 30))
-        self.screen.blit(img, (0, 0))
-
     # calls all display functions and updates pygame screen
-    def update_screen(self, board, holding=None, fps=0.0, show_fps=False, picked_position=0):
+    def update_screen(self, board, holding=None, picked_position=0, highlight_positions=[]):
 
         self.display_squares()
-        self.display_moves()
+        self.display_moves(highlight_positions)
         self.display_pieces(board)
         self.display_holding(holding, picked_position)
 
-        if show_fps:
-            self.display_fps(fps)
         pygame.display.update()
