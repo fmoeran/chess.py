@@ -4,6 +4,7 @@ from engine import evaluate
 from engine import tapered_eval
 from engine import order_moves
 from engine import pieces
+from engine import transposition
 
 from typing import Optional
 
@@ -12,6 +13,8 @@ import time
 DEFAULT_DEPTH = 3
 DEFAULT_TIME_LIMIT = 1  # s
 QUIESCENCE = True
+USE_TT = True
+DEFAULT_TT_SIZE = 1000000
 
 POSITIVE_INFINITY = 9999999
 NEGATIVE_INFINITY = -POSITIVE_INFINITY
@@ -19,7 +22,7 @@ CHECKMATE_VALUE = -999999
 
 
 class Bot:
-    def __init__(self, move_time_limit=DEFAULT_TIME_LIMIT):
+    def __init__(self, move_time_limit=DEFAULT_TIME_LIMIT, tt_size=DEFAULT_TT_SIZE):
         """
         stores functionality to find the "best" move from any board position
         """
@@ -29,13 +32,15 @@ class Bot:
         self.nodes = 0
         self.best_root_move = None
         self.best_root_score = None
+        self.tt = transposition.TranspositionTable(tt_size)
+        self.tt_hits = 0
 
     def should_finish_search(self):
         """
         called during search
         returns whether self.search() has gone of for oo long
         """
-        return time.time() - self.start_time > self.time_limit
+        return time.time() - self.start_time > self.time_limit and self.best_root_move is not None
 
     def search(self, board: bitboard.Board):
         """
@@ -43,6 +48,11 @@ class Bot:
         """
         self.start_time = time.time()
         self.generator = move_generator.Generator(board)
+
+        self.best_root_move = None
+        self.best_root_score = None
+
+        self.tt_hits = 0
 
         # iterative deepening
         for depth in range(1, 1000):
@@ -52,13 +62,13 @@ class Bot:
             self.negamax_root(board, depth)
         print("depth:", depth)
         print("value:", self.best_root_score)
+        print("tt hits:", self.tt_hits)
         print("nodes:", self.nodes)
-        print("time:", time.time()-self.start_time)
         return self.best_root_move
 
     def negamax_root(self, board, depth):
         moves_list = self.generator.get_legal_moves()
-        moves_list = order_moves.order(board, moves_list)
+        moves_list = order_moves.order(board, moves_list, self.tt)
 
         self.nodes += len(moves_list)
 
@@ -82,9 +92,16 @@ class Bot:
         self.best_root_score = best_score
 
     def negamax(self, board, depth, alpha, beta):
+        if USE_TT:
+            if self.tt.contains(board.zobrist, depth, alpha, beta):
+                self.tt_hits += 1
+                return self.tt[board.zobrist].value
 
         if depth == 0:
-            return tapered_eval.evaluate(board)
+            if QUIESCENCE:
+                return self.qsearch(board, depth, alpha, beta)
+            else:
+                return tapered_eval.evaluate(board)
 
         moves = self.generator.get_legal_moves()
         if not moves:
@@ -94,7 +111,11 @@ class Bot:
             else:
                 return CHECKMATE_VALUE - depth
 
-        moves = order_moves.order(board, moves)
+        moves = order_moves.order(board, moves, self.tt)
+
+        node_type = transposition.NodeType.upper_bound
+
+        best_move = None
 
         for move in moves:
             self.nodes += 1
@@ -107,101 +128,63 @@ class Bot:
 
             # tif we won't get reached in perfect play by opponent
             if score >= beta:
-                return beta
+                node_type = transposition.NodeType.lower_bound
+                best_move = move
+                alpha = beta
+                break
             # if this is the new best move
             if score > alpha:
+                node_type = transposition.NodeType.exact
+                best_move = move
                 alpha = score
+
+        new_entry = transposition.TTEntry(board.zobrist, depth, best_move, alpha, node_type)
+        self.tt.replace(new_entry)
+
         return alpha
 
+    def qsearch(self, board, depth, alpha, beta):
+        if USE_TT:
+            if self.tt.contains(board.zobrist, depth, alpha, beta):
+                self.tt_hits += 1
+                return self.tt[board.zobrist].value
 
-class GoodBot:
-    def __init__(self):
-        """
-        stores functionality to find the "best" move from any board position
-        """
-        self.generator: Optional[move_generator.Generator] = None
-        self.nodes = 0
-
-    def search(self, board: bitboard.Board):
-        self.generator = move_generator.Generator(board)
-
-        moves_list = self.generator.get_legal_moves()
-
-        self.nodes = len(moves_list)
-        moves_list = order_moves.order(board, moves_list)
-
-        move_score_list = []  # (move, score)
-
-        alpha = float("-inf")
-        beta = float("inf")
-
-        for move in moves_list:
-            board.make_move(move)
-            score = -self.negamax(board, DEFAULT_DEPTH - 1, -beta, -alpha)
-            board.unmake_move()
-            move_score_list.append((move, score))
-
-            if score > alpha:
-                alpha = score
-
-        best_move, value = max(move_score_list, key=lambda pair: pair[1])
-        if board.colour == pieces.black:  # as we are using negamax
-            value *= -1
-        print(move_score_list)
-        print("value:", value)
-        print("nodes:", self.nodes)
-        return best_move
-
-    def negamax(self, board, depth, alpha, beta):
-
-        if depth == 0:
-            if QUIESCENCE:
-                return self.quiescence(board, -beta, -alpha)
-            else:
-                return evaluate.evaluate(board)
-
-        moves = self.generator.get_legal_moves()
-        if not moves:
-            # either a win, loss, or draw
-            if self.generator.check_mask == ~0:  # not in check
-                return 0
-            else:
-                return float("-inf")
-
-        moves = order_moves.order(board, moves)
-
-        best = float("-inf")
-
-        for move in moves:
-            self.nodes += 1
-            board.make_move(move)
-            score = -self.negamax(board, depth - 1, -beta, -alpha)
-            board.unmake_move()
-            if score >= beta:  # this move won't get reached in perfect play by opponent
-                return beta
-            if score > best:
-                best = score
-                if score > alpha:  # we have found a better move than the current best
-                    alpha = score
-        return best
-
-    def quiescence(self, board, alpha, beta):
-        current_eval = evaluate.evaluate(board)
+        current_eval = tapered_eval.evaluate(board)
+        # the best move might not be a capture
+        # so we set a baseline evaluation here
         if current_eval >= beta:
             return beta
         if current_eval > alpha:
             alpha = current_eval
 
+        # search only moves that are captures
         moves = self.generator.get_legal_moves(only_captures=True)
+
+        best_move = None
+        node_type = transposition.NodeType.lower_bound
 
         for move in moves:
             self.nodes += 1
             board.make_move(move)
-            score = -self.quiescence(board, -beta, -alpha)
+            score = -self.qsearch(board, depth-1, -beta, -alpha)
             board.unmake_move()
 
+            if self.should_finish_search():
+                break
+
+            # beta cutoff just like in negamax
             if score >= beta:
-                return beta
+                node_type = transposition.NodeType.lower_bound
+                best_move = move
+                alpha = beta
+                break
+            # maximise best move score
             if score > alpha:
+                node_type = transposition.NodeType.exact
+                best_move = move
                 alpha = score
+
+        new_entry = transposition.TTEntry(board.zobrist, depth, best_move, alpha, node_type)
+        self.tt.replace(new_entry)
+
         return alpha
