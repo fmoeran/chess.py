@@ -1,6 +1,7 @@
 from engine import bitboard
 from engine import move_generator
 from engine import evaluate
+from engine import tapered_eval
 from engine import order_moves
 from engine import pieces
 
@@ -9,8 +10,12 @@ from typing import Optional
 import time
 
 DEFAULT_DEPTH = 3
-DEFAULT_TIME_LIMIT = 0.5 # s
+DEFAULT_TIME_LIMIT = 1  # s
 QUIESCENCE = True
+
+POSITIVE_INFINITY = 9999999
+NEGATIVE_INFINITY = -POSITIVE_INFINITY
+CHECKMATE_VALUE = -999999
 
 
 class Bot:
@@ -44,13 +49,12 @@ class Bot:
             if self.should_finish_search():
                 break
             # updates self.best_root_move/score
-            self.negamax_root(board, DEFAULT_DEPTH)
-
+            self.negamax_root(board, depth)
+        print("depth:", depth)
         print("value:", self.best_root_score)
         print("nodes:", self.nodes)
         print("time:", time.time()-self.start_time)
         return self.best_root_move
-
 
     def negamax_root(self, board, depth):
         moves_list = self.generator.get_legal_moves()
@@ -58,12 +62,12 @@ class Bot:
 
         self.nodes += len(moves_list)
 
-        best_score = float("-inf")
+        best_score = NEGATIVE_INFINITY
         best_move = None
 
         for move in moves_list:
             board.make_move(move)
-            score = -self.negamax(board, depth - 1, float("-inf"), -best_score)
+            score = -self.negamax(board, depth - 1, NEGATIVE_INFINITY, -best_score)
             board.unmake_move()
 
             if self.should_finish_search():
@@ -80,7 +84,7 @@ class Bot:
     def negamax(self, board, depth, alpha, beta):
 
         if depth == 0:
-            return evaluate.evaluate(board)
+            return tapered_eval.evaluate(board)
 
         moves = self.generator.get_legal_moves()
         if not moves:
@@ -88,7 +92,7 @@ class Bot:
             if self.generator.check_mask == ~0:  # not in check
                 return 0
             else:
-                return float("-inf")
+                return CHECKMATE_VALUE - depth
 
         moves = order_moves.order(board, moves)
 

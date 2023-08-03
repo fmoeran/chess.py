@@ -11,7 +11,7 @@ piece_worths = [
 ]
 
 piece_square = [[
-    # black pawn
+    # pawn
     [0, 0, 0, 0, 0, 0, 0, 0,
      50, 50, 50, 50, 50, 50, 50, 50,
      10, 10, 20, 30, 30, 20, 10, 10,
@@ -20,7 +20,7 @@ piece_square = [[
      5, -5, -10, 0, 0, -10, -5, 5,
      5, 10, 10, -20, -20, 10, 10, 5,
      0, 0, 0, 0, 0, 0, 0, 0],
-    # black knight
+    # knight
     [-50, -40, -30, -30, -30, -30, -40, -50,
      -40, -20, 0, 5, 5, 0, -20, -40,
      -30, 5, 10, 15, 15, 10, 5, -30,
@@ -29,7 +29,7 @@ piece_square = [[
      -30, 0, 10, 15, 15, 10, 0, -30,
      -40, -20, 0, 0, 0, 0, -20, -40,
      -50, -40, -30, -30, -30, -30, -40, -50],
-    # black bishop
+    # bishop
     [-20, -10, -10, -10, -10, -10, -10, -20,
      -10, 0, 0, 0, 0, 0, 0, -10,
      -10, 0, 5, 10, 10, 5, 0, -10,
@@ -38,7 +38,7 @@ piece_square = [[
      -10, 10, 10, 10, 10, 10, 10, -10,
      -10, 5, 0, 0, 0, 0, 5, -10,
      -20, -10, -10, -10, -10, -10, -10, -20],
-    # black rook
+    # rook
     [0, 0, 0, 0, 0, 0, 0, 0,
      5, 10, 10, 10, 10, 10, 10, 5,
      -5, 0, 0, 0, 0, 0, 0, -5,
@@ -47,7 +47,7 @@ piece_square = [[
      -5, 0, 0, 0, 0, 0, 0, -5,
      -5, 0, 0, 0, 0, 0, 0, -5,
      0, 0, 0, 5, 5, 0, 0, 0],
-    # black queen
+    # queen
     [-20, -10, -10, -5, -5, -10, -10, -20,
      -10, 0, 0, 0, 0, 5, 0, -10,
      -10, 0, 5, 5, 5, 5, 5, -10,
@@ -56,7 +56,7 @@ piece_square = [[
      -10, 0, 5, 5, 5, 5, 0, -10,
      -10, 0, 0, 0, 0, 0, 0, -10,
      -20, -10, -10, -5, -5, -10, -10, -20],
-    # black king
+    #  king
     [-30, -40, -40, -50, -50, -40, -40, -30,
      -30, -40, -40, -50, -50, -40, -40, -30,
      -30, -40, -40, -50, -50, -40, -40, -30,
@@ -67,38 +67,28 @@ piece_square = [[
      20, 30, 10, 0, 0, 10, 30, 20],
 
 ]]
-# make the black versions
+# make the white versions
 white_piece_squares = [table[::-1] for table in piece_square[0]]
 piece_square.insert(pieces.white, white_piece_squares)
 
 
-def count_1s(num):
-    return num.bit_count()
+def evaluate(board: bitboard.Board):
+    """
+    evaluates how good a board is for the board's current colour
+    """
+    return evaluate_colour(board, board.colour) - evaluate_colour(board, not board.colour)
 
 
-def static_evaluate(board: bitboard.Board):  # statically estimates a board's value
-    score_sum = 0
+def evaluate_colour(board, colour):
+    res = 0
 
     for piece, worth in enumerate(piece_worths):
-        white_count = count_1s(board.positions[pieces.white][piece])
-        black_count = count_1s(board.positions[pieces.black][piece])
-        score_sum += white_count * worth
-        score_sum -= black_count * worth
+        count = board.positions[colour][piece].bit_count()
+        res += count * worth
 
     # the total sum of the value of positions on the board
-    position_sum = 0
-    mult = 1
-    for colour, squares in enumerate(piece_square):
-        for piece, square in enumerate(squares):
-            for position in bitboard.iter_bitmap(board.positions[colour][piece]):
-                position_sum += mult * square[position]
-        mult = -1
-    total = score_sum + position_sum
-    return total
+    for piece, square in enumerate(piece_square[colour]):
+        for position in bitboard.iter_bitmap(board.positions[colour][piece]):
+            res += square[position]
 
-
-# returns how good the board is for its current colour to play (aka, you always want it to be positive)
-def evaluate(board):
-    res = static_evaluate(board)
-    if board.colour == 1: res = -res
     return res
