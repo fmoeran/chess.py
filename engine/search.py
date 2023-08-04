@@ -30,8 +30,9 @@ class Bot:
         self.time_limit = move_time_limit
         self.start_time = 0  # reset at self.search
         self.nodes = 0
+        self.depth = 0
         self.best_root_move = None
-        self.best_root_score = None
+        self.best_root_score = 0
         self.tt = transposition.TranspositionTable(tt_size)
         self.tt_hits = 0
 
@@ -49,18 +50,23 @@ class Bot:
         self.start_time = time.time()
         self.generator = move_generator.Generator(board)
 
-        self.best_root_move = None
-        self.best_root_score = None
+        self.best_root_move = self.generator.get_legal_moves()[0]
+        self.best_root_score = 0
 
         self.tt_hits = 0
 
         # iterative deepening
-        for depth in range(1, 1000):
+        self.depth = 1
+        while self.depth < 1000:
             if self.should_finish_search():
                 break
             # updates self.best_root_move/score
-            self.negamax_root(board, depth)
-        print("depth:", depth)
+            self.negamax_root(board, self.depth)
+            self.depth += 1
+
+        if board.colour == pieces.black:
+            self.best_root_score *= -1
+        print("depth:", self.depth)
         print("value:", self.best_root_score)
         print("tt hits:", self.tt_hits)
         print("nodes:", self.nodes)
