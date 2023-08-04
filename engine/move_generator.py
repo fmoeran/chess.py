@@ -1,29 +1,24 @@
-from time import time
-
 from engine import bitboard
 from engine import move
 from engine import pieces
 from engine import magics
 
 
-def map_to_moves(pos, map, tag=move.Flags.none, promotion_piece=0):
+def map_to_moves(pos, map, flag=move.Flags.none, promotion_piece=0):
     """
-    converts a bitmap of the positions a piece can go to into a set of moves
+    converts a bitmap of the positions a piece can go to into a list of moves
     """
     start_map = bitboard.bitset[pos]
     moves = []
-    while map:
-        # https://www.youtube.com/watch?v=ZRNO-ewsNcQ 4:33
-        end_map = map & -map
-        moves.append(move.Move(start_map, end_map, tag, promotion_piece))
-        map = map & (map - 1)
+    for position in bitboard.iter_bitmap(map):
+        moves.append(move.Move(start_map, bitboard.bitset[position], flag, promotion_piece))
 
     return moves
 
 
 def generate_king_pseudo_moves():
     """
-    generates a lookup table for the pseudo moveable positions of a king in that position
+    generates a lookup table for the pseudo movable positions of a king in that position
     """
 
     table = []
@@ -32,15 +27,15 @@ def generate_king_pseudo_moves():
         neighbours = []
         neighbour_map = 0
         if row > 0:
-            neighbours.append(pos - 8)              # down
+            neighbours.append(pos - 8)  # down
             if col > 0: neighbours.append(pos - 7)  # down & left
             if col < 7: neighbours.append(pos - 9)  # down & right
         if row < 7:
-            neighbours.append(pos + 8)              # up
+            neighbours.append(pos + 8)  # up
             if col > 0: neighbours.append(pos + 9)  # up & left
             if col < 7: neighbours.append(pos + 7)  # up & right
-        if col > 0: neighbours.append(pos + 1)      # left
-        if col < 7: neighbours.append(pos - 1)      # right
+        if col > 0: neighbours.append(pos + 1)  # left
+        if col < 7: neighbours.append(pos - 1)  # right
 
         for neighbour in neighbours:
             neighbour_map |= bitboard.bitset[neighbour]
@@ -163,7 +158,6 @@ pawn_step_sizes = (8, -8)  # only used when getting double steps
 
 pawn_attack_lookups = generate_pawn_attack_pseudo_moves()
 
-# NOTE this is why the startup is long
 rook_attack_lookups = generate_rook_attack_pseudo_moves()
 
 bishop_attack_lookups = generate_bishop_attack_pseudo_moves()
@@ -180,16 +174,17 @@ class Generator:
         return knight_pseudo_lookup[pos]
 
     def pseudo_pawn(self, pos):
-
         nall = ~self.board.all
+        # bitmap for one step forward of the pawn
         forward_map = pawn_push_lookups[self.board.colour][pos]
         forward_map &= nall  # cannot be stepping on another piece
-
-        if forward_map & pawn_double_step_rows[self.board.colour]:  # if we are able to double step
-
+        # if we are able to double step
+        if forward_map & pawn_double_step_rows[self.board.colour]:
             forward_map |= pawn_push_lookups[self.board.colour][pos + pawn_step_sizes[self.board.colour]] & nall
+        # bitmap for positions we can attack diagonally
         attack_map = pawn_attack_lookups[self.board.colour][pos] & self.board.all
 
+        # join both bitmaps
         return forward_map | attack_map
 
     def pseudo_rook(self, pos):
@@ -203,47 +198,63 @@ class Generator:
         return self.pseudo_rook(pos) | self.pseudo_bishop(pos)
 
     def __init__(self, board: bitboard.Board):
-        '''
+        """
         a class for retrieving the possible moves at a position, etc...
-        NOTE self.board is a reference to a board, so will change along with the board in game changeing
-        '''
+        NOTE self.board is a reference to a board, so will change along with the board in game changing
+        """
+        self.board = board
+
         self.not_team_map = None
         self.pin_masks = None
         self.check_mask = None
         self.attack_map = None
-        self.board = board
+
         # the methods that should be called to get the pseudo legal moves for each piece type
         # this is only used in get_attack_map
         self.pseudo_methods = [self.pseudo_pawn, self.pseudo_knight, self.pseudo_bishop,
                                self.pseudo_rook, self.pseudo_queen, self.pseudo_king]
 
-        self.timer = 0
-
     def get_attack_map(self):
         """
-        sets self.attack_map to all the positions attacked by the opposition
+        creates a bitmap set to all the positions attacked by the opposition
         IMPORTANT it ignores the friendly king's position
         only used for king and castle moves
-        :return:
         """
+
         temp_king = self.board.positions[self.board.colour][pieces.king]
         # we remove the king to allow for pinning a king to itself
         self.board.positions[self.board.colour][pieces.king] = 0
         # also have to remove it from the board.all
         self.board.all ^= temp_king
 
+        enemies = self.board.positions[not self.board.colour]
 
         result = 0
-        for piece_type, position_maps in enumerate(self.board.positions[not self.board.colour]):
-            for position in bitboard.iter_bitmap(position_maps):
-                if piece_type == pieces.pawn:  # we want to deal only with their attacks, not pushes
-                    continue
-                result |= self.pseudo_methods[piece_type](position) # noqa
 
-        # add pawns
-        pawn_map = self.board.positions[not self.board.colour][pieces.pawn]
-        for position in bitboard.iter_bitmap(pawn_map):
-            result |= pawn_attack_lookups[1 - self.board.colour][position]
+        # pawn
+        for position in bitboard.iter_bitmap(enemies[pieces.pawn]):
+            result |= pawn_attack_lookups[not self.board.colour][position]
+
+        # knight map
+        for position in bitboard.iter_bitmap(enemies[pieces.knight]):
+            result |= self.pseudo_knight(position)
+
+        # bishop
+        for position in bitboard.iter_bitmap(enemies[pieces.bishop]):
+            result |= self.pseudo_bishop(position)
+
+        # rook
+        for position in bitboard.iter_bitmap(enemies[pieces.rook]):
+            result |= self.pseudo_rook(position)
+
+        # queen
+        for position in bitboard.iter_bitmap(enemies[pieces.queen]):
+            result |= self.pseudo_queen(position)
+
+        # king
+
+        position = bitboard.get_single_position(enemies[pieces.king])
+        result |= self.pseudo_king(position)
 
         self.board.all |= temp_king
         self.board.positions[self.board.colour][pieces.king] = temp_king
@@ -252,16 +263,21 @@ class Generator:
 
     def get_check_mask(self):
         king_map = self.board.positions[self.board.colour][pieces.king]
-        king_pos = bitboard.bitset.index(king_map)
+        king_pos = bitboard.get_single_position(king_map)
 
         result = ~0
+
+        # used to check for double checks
         already_checked = False
 
+        # reference to the enemies' bitmap
         enemies = self.board.positions[not self.board.colour]
+
+        # knights
 
         # positions of every knight attacking the king
         knight_map = self.pseudo_knight(king_pos) & enemies[pieces.knight]
-        num_knights = magics.count_1s(knight_map)
+        num_knights = knight_map.bit_count()
         if num_knights >= 2:  # being in check twice means there's no legal move apart from the king
             return 0
         elif num_knights == 1:
@@ -270,7 +286,7 @@ class Generator:
 
         # pawns
         pawn_map = pawn_attack_lookups[self.board.colour][king_pos] & enemies[pieces.pawn]
-        num_pawns = magics.count_1s(pawn_map)
+        num_pawns = pawn_map.bit_count()
         if num_pawns >= 2 or (num_pawns == 1 and already_checked):
             return 0
         elif num_pawns == 1:
@@ -279,75 +295,51 @@ class Generator:
 
         # rooks
         rook_map = self.pseudo_rook(king_pos) & (enemies[pieces.rook] | enemies[pieces.queen])
-        num_rooks = magics.count_1s(rook_map)
+        num_rooks = rook_map.bit_count()
         if num_rooks >= 2 or (num_rooks == 1 and already_checked):  # 2 or more checks
             return 0
         elif num_rooks == 1:
             already_checked = True
-            if king_map > rook_map:  # rook to the right or below king
-                if king_map >> 8 < rook_map:  # same row
-                    result = ((king_map<<1) - 1) ^ (rook_map-1)
-                else:
-                    result = 0
-                    pos = king_map
-                    while pos != rook_map:
-                        pos >>= 8
-                        result |= pos
-            else:  # rook on the left of above king
-                if king_map << 8 > rook_map:  # same row
-                    result = ((rook_map<<1) - 1) ^ ((king_map<<1) - 1)
-                else:
-                    result = 0
-                    pos = king_map
-                    while pos != rook_map:
-                        pos <<= 8
-                        result |= pos
+            rook_pos = bitboard.get_single_position(rook_map)
+            result = (self.pseudo_rook(king_pos) & self.pseudo_rook(rook_pos)) | rook_map
+
         # bishops
         bishop_map = self.pseudo_bishop(king_pos) & (enemies[pieces.bishop] | enemies[pieces.queen])
 
-        num_bishops = magics.count_1s(bishop_map)
+        num_bishops = bishop_map.bit_count()
 
         if num_bishops >= 2 or (num_bishops == 1 and already_checked):  # 2 or more checks
-
             return 0
         elif num_bishops == 1:
-            already_checked = True
-            bishop_pos = bitboard.bitset.index(bishop_map)
-            br, bc = bishop_pos // 8, 7 - bishop_pos % 8  # A1 = 0, 0
-            kr, kc = king_pos // 8, 7 - king_pos % 8
-            if king_map > bishop_map:  # bishop is to the right of the king (below)
-                result = 0
-                dif = 9 if bc > kc else 7
-                pos = king_map
-                while pos != bishop_map:
-                    pos >>= dif
-                    result |= pos
-            else:
-                result = 0
-                dif = 7 if bc > kc else 9
-                pos = king_map
-                while pos != bishop_map:
-                    pos <<= dif
-                    result |= pos
+            bishop_pos = bitboard.get_single_position(bishop_map)
+            result = (self.pseudo_bishop(king_pos) & self.pseudo_bishop(bishop_pos)) | bishop_map
 
         return result
 
     def get_pin_masks(self, king_pos):
-        nzero = ~0
-        masks = [nzero for _ in range(64)]
+        """
+        generates pin masks for every position on the board
+        """
+        # set all the masks to all 1s by default
+        masks = [~0 for _ in range(64)]
 
+        # positions of enemy attackers
         rook_pos = self.board.positions[not self.board.colour][pieces.rook]
         bishop_pos = self.board.positions[not self.board.colour][pieces.bishop]
         queen_pos = self.board.positions[not self.board.colour][pieces.queen]
 
         rook_pseudo = rook_attack_lookups[king_pos][self.board.all]
         team_rook_pseudo = rook_pseudo & self.board.team_maps[self.board.colour]
-        team_rook_iterator = team_rook_pseudo  # we will be using this to iterate through the positions
+        # we will be using this to iterate through the positions
+        team_rook_iterator = team_rook_pseudo
         while team_rook_iterator:
-            new_position = team_rook_iterator & -team_rook_iterator  # get the next position in team_rook_pseudo
-            team_rook_iterator &= team_rook_iterator - 1  # iterate through team_rook_iterator
+            # get the next position in team_rook_pseudo
+            new_position = team_rook_iterator & -team_rook_iterator
+            # iterate through team_rook_iterator
+            team_rook_iterator &= team_rook_iterator - 1
             # get the pseudo moves but ignoring the position
             new_rook_pseudo = rook_attack_lookups[king_pos][self.board.all ^ new_position]
+            # if our piece is being pinned by a rook/queen
             if new_rook_pseudo & (rook_pos | queen_pos) & ~rook_pseudo:
                 new_pos = bitboard.get_single_position(new_position)
                 new_position_pseudo = rook_attack_lookups[new_pos][self.board.all]
@@ -359,10 +351,13 @@ class Generator:
         team_bishop_pseudo = bishop_pseudo & self.board.team_maps[self.board.colour]
         team_bishop_iterator = team_bishop_pseudo
         while team_bishop_iterator:
-            new_position = team_bishop_iterator & -team_bishop_iterator  # get the next position in team_bishop_pseudo
-            team_bishop_iterator &= team_bishop_iterator - 1  # iterate through team_rook_iterator
+            # get the next position in team_bishop_pseudo
+            new_position = team_bishop_iterator & -team_bishop_iterator
+            # iterate through team_rook_iterator
+            team_bishop_iterator &= team_bishop_iterator - 1
             # get the pseudo moves but ignoring the position
             new_bishop_pseudo = bishop_attack_lookups[king_pos][self.board.all ^ new_position]
+            # if our piece is being pinned by a bishop/queen
             if new_bishop_pseudo & (bishop_pos | queen_pos) & ~bishop_pseudo:
                 new_pos = bitboard.get_single_position(new_position)
                 new_position_pseudo = bishop_attack_lookups[new_pos][self.board.all]
@@ -399,14 +394,12 @@ class Generator:
         position_map &= ~end_row
 
         for position in bitboard.iter_bitmap(position_map):
-
             pin_mask = self.pin_masks[position]
 
             pseudo_moves = self.pseudo_pawn(position)
 
             legal_moves = pseudo_moves & self.check_mask & pin_mask & self.not_team_map
             moves.extend(map_to_moves(position, legal_moves))
-
 
         return moves
 
@@ -455,16 +448,22 @@ class Generator:
         king_pos = self.board.positions[self.board.colour][pieces.king]
         other_positions = self.board.all & ~king_pos
 
+        # right
         if self.board.right_castles[self.board.colour] is True:
             covered_positions = king_pos | king_pos >> 1 | king_pos >> 2
             if not (covered_positions & self.attack_map) and not (covered_positions & other_positions):
                 result.extend(map_to_moves(bitboard.get_single_position(king_pos), king_pos >> 2, move.Flags.castle))
+
+        # left
         if self.board.left_castles[self.board.colour] is True:
             covered_positions = king_pos | king_pos << 1 | king_pos << 2 | king_pos << 3
             no_attack_positions = king_pos | king_pos << 1 | king_pos << 2
             if not (no_attack_positions & self.attack_map) and not (covered_positions & other_positions):
-                result.extend(map_to_moves(bitboard.get_single_position(king_pos), king_pos << 2, move.Flags.castle))
+                result.extend(
+                    map_to_moves(bitboard.get_single_position(king_pos), king_pos << 2, move.Flags.castle))
+
         return result
+
 
     def get_promotion_moves(self):
         moves = []
@@ -476,24 +475,29 @@ class Generator:
             pseudo_moves = self.pseudo_pawn(position)
             legal_moves = pseudo_moves & self.check_mask & pin_mask & self.not_team_map
             for piece in promotion_pieces:
-                moves.extend(map_to_moves(position, legal_moves, tag=move.Flags.promotion, promotion_piece=piece))
+                moves.extend(map_to_moves(position, legal_moves, flag=move.Flags.promotion, promotion_piece=piece))
 
         return moves
 
     def get_en_passent_moves(self):
         result = []
+        # a pawn didn't double step last move
         if not self.board.ep_map:
             return result
 
         ep_map = self.board.ep_map
         if self.board.colour == pieces.white:
+            # the possible positions that could en passant
             attack_positions = ep_map >> 9 | ep_map >> 7
+            # the pawn that could be captured
             pawn_position = ep_map >> 8
         else:
             attack_positions = ep_map << 9 | ep_map << 7
             pawn_position = ep_map << 8
 
+        # make sure no bitboard overflowing happened
         attack_positions &= pawn_ep_rows[self.board.colour]
+        # make sure attack positions have pawns on them
         attack_positions &= self.board.positions[self.board.colour][pieces.pawn]
         if not attack_positions:
             return result
@@ -525,7 +529,7 @@ class Generator:
     def get_legal_king_moves(self):
         # position = next(iter(self.board.int_positions[self.board.colour][pieces.king]))
         position = bitboard.get_single_position(self.board.positions[self.board.colour][pieces.king])
-        pseudo_legal = self.pseudo_king(position)
+        pseudo_legal = king_pseudo_lookup[position]
         legal_moves = pseudo_legal & ~self.attack_map & self.not_team_map
         return map_to_moves(position, legal_moves)
 
@@ -537,10 +541,9 @@ class Generator:
 
         if not self.board.positions[self.board.colour][pieces.king]:
             return moves
-        t = time()
         self.attack_map = self.get_attack_map()
 
-        king_pos = bitboard.bitset.index(self.board.positions[self.board.colour][pieces.king])
+        king_pos = bitboard.get_single_position(self.board.positions[self.board.colour][pieces.king])
 
         self.check_mask = self.get_check_mask()
 
@@ -552,7 +555,6 @@ class Generator:
             self.not_team_map = self.board.team_maps[not self.board.colour]
 
         moves.extend(self.get_legal_pawn_moves())
-
         moves.extend(self.get_legal_knight_moves())
         moves.extend(self.get_legal_bishop_moves())
         moves.extend(self.get_legal_rook_moves())
@@ -563,5 +565,4 @@ class Generator:
         moves.extend(self.get_castling_moves())
         moves.extend(self.get_promotion_moves())
         moves.extend(self.get_en_passent_moves())
-        self.timer += time() - t
         return moves
