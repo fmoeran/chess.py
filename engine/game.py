@@ -11,7 +11,7 @@ from engine import pieces
 
 pygame.init()
 
-starting_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w QKqk - 0 1"
+starting_fen = "rnbqkbnr/pPpppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w QKqk - 0 1"
 
 
 class GameState(Enum):
@@ -259,8 +259,13 @@ class Game:
 
         if not self.asking_for_promotion:
             self.display.update_screen(self.board, holding=self.holding,
-                                       picked_position=self.picked_up_position,
-                                       highlight_positions=self.highlight_positions)
+                                           picked_position=self.picked_up_position,
+                                           highlight_positions=self.highlight_positions)
+        else:
+            self.display.update_screen(self.board, holding=None,
+                                           picked_position=None,
+                                           highlight_positions=[])
+
 
         result = self.move()
 

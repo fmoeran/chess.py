@@ -62,7 +62,6 @@ class Button:
         pygame.draw.rect(self.screen, self.border_clr, (self.x, self.y, self.width, self.height), 3)
         self.screen.blit(self.text_surface, (self.text_x, self.text_y, self.text_width, self.text_height))
 
-
     def is_hovering(self):
         mouse_x, mouse_y = pygame.mouse.get_pos()
         # AABB collision

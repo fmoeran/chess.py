@@ -1,5 +1,6 @@
 import engine
 from button import Button
+from move_display import MoveDisplay
 
 import pygame
 
@@ -62,6 +63,8 @@ class Interface:
         self.bot_depth_display = Button(self.screen, position=(735, 340), area=(145, 70))
         self.bot_eval_display = Button(self.screen, position=(735, 490), area=(145, 70), text="N/A")
 
+        self.move_display = MoveDisplay(self.screen)
+
     def run(self):
         self.running = True
         while self.running:
@@ -95,20 +98,24 @@ class Interface:
             self.bot_depth_display.update_text("N/A")
             self.bot_eval_display.update_text("N/A")
 
-
         # display every button
         for button in self.buttons:
             button.update(user_clicked)
 
         # display game
         if self.current_screen == Screens.game:
+            # update move_display
+            if len(self.move_display.move_texts) != len(self.game.board.past_moves):
+                self.move_display.add_move(self.game.board.past_moves[-1].notate())
+
+            self.move_display.update()
             self.game_state = self.game.update(self.events)
+
             # if the game has finished
             if self.game_state != engine.game.GameState.unfinished:
                 pygame.display.update()
                 time.sleep(0.3)
                 self.load_game_over_screen()
-
 
         pygame.display.update()
 
@@ -119,6 +126,7 @@ class Interface:
         if self.game.board.logs:
             self.game.board.unmake_move()
             self.game.current_legal_moves = None
+            self.move_display.pop_move()
 
     def set_player_white(self):
         self.player_colour_choice = PlayerColourChoice.white
@@ -232,6 +240,8 @@ class Interface:
         self.screen = pygame.display.set_mode((900, 720))
         self.current_screen = Screens.game
 
+        self.move_display = MoveDisplay(self.screen, position=(725, 5), area=(170, 215))
+
         self.init_game()
 
         self.buttons = [
@@ -264,7 +274,6 @@ class Interface:
             message = "Black Wins"
         elif self.game_state == engine.game.GameState.draw:
             message = "Draw"
-        print(message)
         self.buttons = [
             # game over message
             Button(self.screen, position=(0,0), area=(900, 200), text="GAME OVER", font_size=100, border_clr=self.bg_clr),
@@ -280,7 +289,6 @@ class Interface:
         ]
 
     def init_game(self):
-
         white_is_ai = True
         black_is_ai = True
         if self.player_colour_choice == PlayerColourChoice.white:
@@ -310,5 +318,5 @@ class Interface:
 if __name__ == '__main__':
     interface = Interface()
     interface.game_state = engine.game.GameState.white_win
-    interface.load_game_over_screen()
+    interface.load_menu_screen()
     interface.run()

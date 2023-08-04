@@ -27,7 +27,6 @@ class ImgButton:
         """
         self.surface.blit(self.rect_surface, self.coords)
         self.surface.blit(self.image, self.img_position)
-        pygame.display.update()
 
     def update(self):
         """
@@ -246,4 +245,4 @@ class BoardDisplay:
         self.display_pieces(board)
         self.display_holding(holding, picked_position)
 
-        pygame.display.update()
+
