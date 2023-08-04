@@ -1,4 +1,5 @@
 from random import randint, seed
+from time import time
 
 from engine import move
 from engine import pieces
@@ -11,7 +12,6 @@ max_zob = (1 << 65) - 1
 
 seed(1)
 
-
 def make_zobrist():
     return randint(0, max_zob)
 
@@ -21,6 +21,8 @@ zobrist_team = make_zobrist()
 zobrist_right_castles = [make_zobrist(), make_zobrist()]
 zobrist_left_castles = [make_zobrist(), make_zobrist()]
 zobrist_ep = [make_zobrist() for i in range(8)]
+
+seed(time())
 
 bitset = []
 p = 1
@@ -50,7 +52,6 @@ def get_single_position(bitmap):
     """
     implementation of bitscan-forward for singular bit position maps
     """
-
     return (bitmap & -bitmap).bit_length() - 1
 
 
@@ -197,6 +198,9 @@ class Board:
         self.colour = None
         self.half_moves = None
 
+        # a stack of the past moves that the board has made
+        self.past_moves = []
+
         self.set_positions(wp, wn, wb, wr, wq, wk, bp, bn, bb, br, bq, bk)
         self.set_game_state(ep, wlc, wrc, blc, brc, move_count, hm, colour)
 
@@ -237,6 +241,8 @@ class Board:
         NOTE this does not take legality into account.
         '''
 
+        self.past_moves.append(p_move)
+
         new_log = Log(self)
         self.currently_altering = []
 
@@ -274,7 +280,10 @@ class Board:
 
 
         # update ep_map
-        self.ep_map = 0
+        if self.ep_map:
+            self.toggle_ep_zobrist(self.ep_map)
+            self.ep_map = 0
+
         if start_piece_type == pieces.pawn:
             self.update_ep_map(start, end)
 
@@ -340,8 +349,6 @@ class Board:
 
         self.take_piece(ep_pos, pieces.pawn)
 
-        # add to zobrist
-        self.toggle_ep_zobrist(end)
 
     def move_piece_promotion(self, start, end, promotion_piece_type):
         '''
@@ -404,7 +411,12 @@ class Board:
             self.ep_map = end << 8
 
 
+        # toggle this new ep_map into our zobrist hash
+        self.toggle_ep_zobrist(self.ep_map)
+
+
     def unmake_move(self):
+        self.past_moves.pop()
         log = self.logs.pop()
         log.replace(self)
 
