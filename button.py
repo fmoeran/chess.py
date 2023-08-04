@@ -9,7 +9,7 @@ def bool_function():
 
 
 class Button:
-    def __init__(self, screen, text="", position=(0, 0), area=(200, 120),
+    def __init__(self, screen, text="", position=(0, 0), area=(200, 120), text_offset=(0,0),
                  font="arial", font_size=32, font_clr="Black", bg_off_clr=(255,255,255),
                  bg_on_clr=(200,200,200), border_clr=(0,0,0), func=void_function, pressed_check=bool_function):
         """
@@ -19,6 +19,7 @@ class Button:
             text (str): text the will be displayed onto the button
             position (Tuple[int, int]): coordinates of the top left corner of the button
             area (Tuple[int, int]): the width and height of the button
+            text_offset (Tuple[int, int]): how far from the centre of the button the text should be
             font (str): the name of a pygame available font
             font_size (int): the size of font
             font_clr (str): pygame colour for displaying the text
@@ -45,11 +46,13 @@ class Button:
         self.border_clr = border_clr
         self.func = func
         self.pressed_check = pressed_check
+        self.text_offset_x, self.text_offset_y = text_offset
         self.text = None
         self.text_width = None
         self.text_height = None
         self.text_x = None
         self.text_y = None
+
         self.text_surface = None
         self.update_text(text)
 
@@ -74,7 +77,8 @@ class Button:
     def update_text(self, text):
         self.text = text
         self.text_width, self.text_height = self.font.size(text)
-        self.text_x, self.text_y = self.x + self.width / 2 - self.text_width / 2, self.y + self.height / 2 - self.text_height / 2
+        self.text_x = self.x + self.width / 2 - self.text_width / 2 + self.text_offset_x
+        self.text_y = self.y + self.height / 2 - self.text_height / 2 + self.text_offset_y
         self.text_surface = self.font.render(self.text, True, self.font_clr)
 
 
