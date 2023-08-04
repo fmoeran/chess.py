@@ -1,6 +1,7 @@
 import pygame
 import random
 import time
+from enum import Enum
 
 from engine import move
 from engine import display
@@ -11,6 +12,13 @@ from engine import pieces
 pygame.init()
 
 starting_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w QKqk - 0 1"
+
+
+class GameState(Enum):
+    unfinished = 0
+    white_win = 1
+    black_win = 2
+    draw = 3
 
 
 # class with the game loop that activates each move and contains a board display and board
@@ -236,7 +244,9 @@ class Game:
                     if event.key == pygame.K_ESCAPE:
                         running = False
 
-            self.update(events)
+            res = self.update(events)
+            if res != GameState.unfinished:
+                return res
 
     def update(self, events):
         self.events = events
@@ -246,10 +256,6 @@ class Game:
                     if self.debug and self.board.logs:
                         self.board.unmake_move()
                         self.current_legal_moves = None
-                        if self.board.logs:
-                            self.display.update_screen(self.board)
-                            time.sleep(0.05)
-                            self.board.unmake_move()
 
         if not self.asking_for_promotion:
             self.display.update_screen(self.board, holding=self.holding,
@@ -259,13 +265,17 @@ class Game:
         result = self.move()
 
         if result is not None:
+            # checkmate
             if self.generator.get_attack_map() & self.board.positions[self.board.colour][pieces.king]:
-                return 1 - self.board.colour
-            else:
-                return None
+                if self.board.colour == pieces.black:
+                    return GameState.white_win
+                else:
+                    return GameState.black_win
+            else:  # draw
+                return GameState.draw
+        return GameState.unfinished
 
 
 if __name__ == "__main__":
     game = Game(white_is_ai=False, black_is_ai=False, size=90)
-    game.set_ai()
     game.run()

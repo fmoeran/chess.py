@@ -12,11 +12,11 @@ class Screens(Enum):
     game = 1
     game_over = 2
 
+
 class PlayerColourChoice(Enum):
     white = 0
     black = 1
     rand = 2
-
 
 
 class Interface:
@@ -25,8 +25,6 @@ class Interface:
         self.screen = pygame.display.set_mode((900, 720))
         self.game = engine.game.Game(self.screen, size=90, black_is_ai=True)
         self.bot = engine.search.Bot()
-        self.game.set_ai(self.bot.search, engine.pieces.white)
-        self.game.set_ai(self.bot.search, engine.pieces.black)
         # a list of events that are handed to self.game.update
         self.events = []
         # list of Button objects that are refreshed every frame
@@ -58,6 +56,7 @@ class Interface:
     def update(self):
         self.screen.fill(self.bg_clr)
 
+        # check whether user clicked this frame
         user_clicked = False
         if pygame.mouse.get_pressed(3)[0]:
             if not self.is_holding_mouse:
@@ -66,17 +65,19 @@ class Interface:
         else:
             self.is_holding_mouse = False
 
+        # update bot depth display
+        self.bot_depth_display.update_text(f"{self.bot.depth}")
+
+        # update bot eval display
+        self.bot_eval_display.update_text(f"{self.bot.best_root_score / 100:.1f}")
+
+        # display every button
         for button in self.buttons:
             button.update(user_clicked)
 
+        # display game
         if self.current_screen == Screens.game:
             self.game.update(self.events)
-
-            # update bot depth display
-            self.bot_depth_display.update_text(f"{self.bot.depth}")
-
-            # update bot eval display
-            self.bot_eval_display.update_text(f"{self.bot.best_root_score / 100:.1f}")
 
         pygame.display.update()
 
@@ -111,12 +112,13 @@ class Interface:
         self.current_screen = Screens.menu
         self.buttons = [
             # play button
-            Button(self.screen, position=(15, 15), area=(350, 200), text="PLAY", font_size=80, func=self.load_game_screen),
+            Button(self.screen, position=(15, 15), area=(350, 200), text="PLAY", font_size=80,
+                   func=self.load_game_screen),
 
             # colour choice container
             Button(self.screen, position=(400, 15), area=(580, 200)),
             # white colour choice button
-            Button(self.screen, position=(420, 30), area=(170,170), text="White", func=self.set_player_white,
+            Button(self.screen, position=(420, 30), area=(170, 170), text="White", func=self.set_player_white,
                    pressed_check=self.is_player_white),
             # black colour choice button
             Button(self.screen, position=(605, 30), area=(170, 170), text="Black", func=self.set_player_black,
@@ -130,6 +132,9 @@ class Interface:
     def load_game_screen(self):
         self.screen = pygame.display.set_mode((900, 720))
         self.current_screen = Screens.game
+
+        self.init_game()
+
         self.buttons = [
             # undo move button
             Button(self.screen, position=(725, 225), area=(170, 80), text="UNDO", func=self.undo_move),
@@ -146,8 +151,31 @@ class Interface:
             Button(self.screen, position=(740, 495), area=(45, 15), text="Eval", font_size=16,
                    border_clr=(255, 255, 255)),
 
-        ]
 
+
+        ]
+        self.update()
+
+    def init_game(self):
+
+        white_is_ai = True
+        black_is_ai = True
+        if self.player_colour_choice == PlayerColourChoice.white:
+            # set player to white
+            white_is_ai = False
+        elif self.player_colour_choice == PlayerColourChoice.black:
+            # set player to black
+            black_is_ai = False
+        elif self.player_colour_choice == PlayerColourChoice.rand:
+            # randomly set player to white or black
+            if random.random() < 0.5:
+                white_is_ai = False
+            else:
+                black_is_ai = False
+
+        self.game = engine.game.Game(self.screen, size=90, white_is_ai=white_is_ai, black_is_ai=black_is_ai)
+        self.game.set_ai(self.bot.search, engine.pieces.white)
+        self.game.set_ai(self.bot.search, engine.pieces.black)
 
 
 if __name__ == '__main__':
