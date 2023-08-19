@@ -33,6 +33,9 @@ class Bot:
         self.depth = 0
         self.best_root_move = None
         self.best_root_score = 0
+        self.use_quiescence = QUIESCENCE
+        self.use_tt = USE_TT
+        self.eval_function = tapered_eval.evaluate
         self.tt = transposition.TranspositionTable(tt_size)
         self.tt_hits = 0
 
@@ -54,6 +57,7 @@ class Bot:
         self.best_root_score = 0
 
         self.tt_hits = 0
+        self.nodes = 0
 
         # iterative deepening
         self.depth = 1
@@ -98,16 +102,16 @@ class Bot:
         self.best_root_score = best_score
 
     def negamax(self, board, depth, alpha, beta):
-        if USE_TT:
+        if self.use_tt:
             if self.tt.contains(board.zobrist, depth, alpha, beta):
                 self.tt_hits += 1
                 return self.tt[board.zobrist].value
 
         if depth == 0:
-            if QUIESCENCE:
+            if self.use_quiescence:
                 return self.qsearch(board, depth, alpha, beta)
             else:
-                return tapered_eval.evaluate(board)
+                return self.eval_function(board)
 
         moves = self.generator.get_legal_moves()
         if not moves:
@@ -130,7 +134,7 @@ class Bot:
             board.unmake_move()
 
             if self.should_finish_search():
-                break
+                return alpha
 
             # tif we won't get reached in perfect play by opponent
             if score >= beta:
