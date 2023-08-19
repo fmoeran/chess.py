@@ -4,10 +4,10 @@ import move_generator
 
 
 
-fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-#fen = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - "
-#fen = "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - "
-#fen = "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1"
+#fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+#fen = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - -"
+#fen = "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - -"
+fen = "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1"
 
 board = bitboard.Board.from_fen(fen)
 generator = move_generator.Generator(board)
@@ -38,18 +38,12 @@ print("searching")
 
 t = time.perf_counter()
 
-depth = 5
+depth = 4
 nodes = perft(depth)
+
 elapsed = time.perf_counter() - t
 
 print(f"finished in {elapsed:.2f}s")
 print(f"{int(nodes / elapsed):,} n/s")
-print(f"timer {generator.timer}")
 
 print(f"{nodes:,} nodes")
-
-
-
-# print("specific time", move_generator.total_time)
-# print(f"portion {move_generator.total_time/gen_time*100:.1f}%")
-
