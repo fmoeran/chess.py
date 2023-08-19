@@ -248,7 +248,7 @@ class Interface:
             # undo move button
             Button(self.screen, position=(725, 225), area=(170, 80), text="UNDO", func=self.undo_move),
             # quit button
-            Button(self.screen, position=(725, 600), area=(170, 115), text="QUIT", func=self.quit_program),
+            Button(self.screen, position=(725, 600), area=(170, 115), text="MENU", func=self.load_menu_screen),
             # bot status
             Button(self.screen, position=(725, 310), area=(170, 285), text="Bot Info"),
             # depth display
