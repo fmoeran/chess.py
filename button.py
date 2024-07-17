@@ -1,6 +1,5 @@
 import pygame
 
-
 def void_function():
     pass
 
