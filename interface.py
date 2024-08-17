@@ -315,8 +315,3 @@ class Interface:
 
 
 
-if __name__ == '__main__':
-    interface = Interface()
-    interface.game_state = engine.game.GameState.white_win
-    interface.load_menu_screen()
-    interface.run()

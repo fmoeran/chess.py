@@ -1,4 +1,3 @@
-
 from random import randint
 
 max_size = 1 << 64
